@@ -44,14 +44,14 @@ This one has no prefix: its root entry point needs nothing IaC-specific. It is n
 
 ## Compatibility
 
-| Peer          | Range     | Needed by                                                      |
-| ------------- | --------- | -------------------------------------------------------------- |
-| `aws-cdk-lib` | `^2.93.0` | `/cdk` only. The first release with `Annotations.addWarningV2` |
-| `constructs`  | `^10.0.0` | `/cdk` only                                                    |
-| `eslint`      | `^10.0.0` | `/eslint` only. Flat config                                    |
-| Node.js       | `>=20`    |                                                                |
+| Peer          | Range                 | Needed by                                                      |
+| ------------- | --------------------- | -------------------------------------------------------------- |
+| `aws-cdk-lib` | `^2.93.0`             | `/cdk` only. The first release with `Annotations.addWarningV2` |
+| `constructs`  | `^10.0.0`             | `/cdk` only                                                    |
+| `eslint`      | `^9.0.0 \|\| ^10.0.0` | `/eslint` only. Flat config, which ESLint 9 made the default   |
+| Node.js       | `>=20`                |                                                                |
 
-Every peer is optional. CI installs the package with none of them and loads the root and `/testing` entry points, then tests every entry point at the oldest version each range admits.
+Every peer is optional, but npm still checks the range of a peer you already have: a project on ESLint 9 can install this package for `/testing` alone only because the range admits 9. CI installs the package with none of them and loads the root and `/testing` entry points, then tests every entry point at the oldest version each range admits.
 
 Ships ESM and CommonJS from one source, built by [tshy](https://github.com/isaacs/tshy). Types resolve under every `moduleResolution`, including `node10`.
 
