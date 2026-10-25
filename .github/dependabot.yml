@@ -1,0 +1,62 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait a week before proposing a release, so a compromised or broken one is
+    # more likely to have been yanked before we adopt it. Security updates are
+    # not held back. zizmor's dependabot-cooldown audit requires >= 7 days.
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    # Widens a mirrored peer (`^10.0.0 || ^11.0.0`) when a new major of it
+    # passes CI. See scripts/check-peer-mirror.mjs.
+    versioning-strategy: widen
+    ignore:
+      # typescript-eslint cannot run on TS 7 (its parser's peer range stops
+      # below it). Same pin as composureCDK; delete it once
+      # typescript-eslint/typescript-eslint#10940 closes.
+      - dependency-name: "typescript"
+        versions: [">=7"]
+    groups:
+      aws-cdk:
+        patterns:
+          - "aws-cdk-lib"
+          - "constructs"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      toolchain:
+        patterns:
+          - "typescript"
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "@eslint/*"
+          - "@eslint-community/*"
+          - "eslint-config-prettier"
+          - "@composurecdk/eslint-plugin"
+      # Last, as the catch-all: a dependency joins the first group it matches.
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  # zizmor, which CI installs from this hash-pinned lock.
+  - package-ecosystem: uv
+    directory: /.github/zizmor
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
