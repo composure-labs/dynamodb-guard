@@ -51,6 +51,7 @@
     "check:entries": "node scripts/check-entries.mjs",
     "check:peers": "node scripts/check-peer-mirror.mjs",
     "check:consumer": "node scripts/consumer-smoke.mjs",
+    "corpus:record": "node scripts/record-corpus.mjs",
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm run check:peers && npm run build && npm run pack && npm run check:exports && npm run check:entries && npm test",
     "prepare": "husky"
   },
@@ -98,6 +99,8 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@aws-sdk/client-dynamodb": "^3.1156.0",
+    "@aws-sdk/lib-dynamodb": "^3.1156.0",
     "@composurecdk/eslint-plugin": "^0.11.1",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^10.0.1",

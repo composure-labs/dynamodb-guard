@@ -1,0 +1,330 @@
+{
+  "recordedAt": "2026-10-25",
+  "region": "eu-west-2",
+  "sdk": "@aws-sdk/client-dynamodb@3.1156.0",
+  "cases": {
+    "update-reserved-bare": {
+      "hash": "0e0833489f8f8c88",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: status"
+    },
+    "update-reserved-aliased": {
+      "hash": "7ed0e5be64879998",
+      "outcome": "accepted"
+    },
+    "update-reserved-title-case": {
+      "hash": "a1e4798dc141e7f8",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: Status"
+    },
+    "update-reserved-upper-case": {
+      "hash": "e9705d76b9882228",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: STATUS"
+    },
+    "update-reserved-path-segment": {
+      "hash": "727834d6c9874097",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: status"
+    },
+    "update-reserved-rhs-operand": {
+      "hash": "053a3adbcc6a1d5a",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: metrics"
+    },
+    "update-reserved-remove": {
+      "hash": "8564a4c08309bc13",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: metrics"
+    },
+    "update-reserved-function-arg": {
+      "hash": "b5f0e9c99802e295",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Attribute name is a reserved keyword; reserved keyword: metrics"
+    },
+    "update-near-reserved": {
+      "hash": "33677ade203c5af8",
+      "outcome": "accepted"
+    },
+    "update-keywords-lower-case": {
+      "hash": "45307fca26c80505",
+      "outcome": "accepted"
+    },
+    "condition-reserved": {
+      "hash": "c9b7e95b1bbfae89",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Attribute name is a reserved keyword; reserved keyword: status"
+    },
+    "condition-reserved-aliased": {
+      "hash": "1f51a9857380a771",
+      "outcome": "accepted"
+    },
+    "filter-reserved": {
+      "hash": "1458aebf92eb598b",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Attribute name is a reserved keyword; reserved keyword: metrics"
+    },
+    "filter-reserved-in-size": {
+      "hash": "2ee6c60ed8d4c5e5",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Attribute name is a reserved keyword; reserved keyword: status"
+    },
+    "projection-reserved": {
+      "hash": "8c3621872048431f",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Attribute name is a reserved keyword; reserved keyword: status"
+    },
+    "projection-reserved-aliased": {
+      "hash": "f29eb8c28a9593db",
+      "outcome": "accepted"
+    },
+    "key-condition-reserved": {
+      "hash": "b8f0ed9bee34ec4a",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Attribute name is a reserved keyword; reserved keyword: data"
+    },
+    "key-condition-reserved-aliased": {
+      "hash": "2a0e24ad453eeca0",
+      "outcome": "accepted"
+    },
+    "update-digit-leading": {
+      "hash": "4576d246a3710c84",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"1\", near: \"SET 1abc\""
+    },
+    "update-digit-leading-aliased": {
+      "hash": "cbb2984bb7760e82",
+      "outcome": "accepted"
+    },
+    "update-dash-lhs": {
+      "hash": "72f836e003880148",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"-\", near: \"my-attr\""
+    },
+    "condition-dash": {
+      "hash": "bd40e130ed0d6bc4",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Syntax error; token: \"-\", near: \"my-attr\""
+    },
+    "update-subtraction-spaced": {
+      "hash": "82abef9ee7924c18",
+      "outcome": "accepted"
+    },
+    "update-subtraction-unspaced": {
+      "hash": "d73298b2713ef125",
+      "outcome": "accepted"
+    },
+    "update-nested-path": {
+      "hash": "b13f3a63f1e50859",
+      "outcome": "accepted"
+    },
+    "update-list-index": {
+      "hash": "62e621376d677ee5",
+      "outcome": "accepted"
+    },
+    "update-underscore-leading": {
+      "hash": "eee4062b0206eec4",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"_\", near: \"SET _u\""
+    },
+    "update-non-ascii": {
+      "hash": "783f8b56264de637",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"é\", near: \"café =\""
+    },
+    "update-alias-digit-leading": {
+      "hash": "fe94c777aaefbe33",
+      "outcome": "accepted"
+    },
+    "update-value-digit-leading": {
+      "hash": "324a4a1c80054402",
+      "outcome": "accepted"
+    },
+    "update-undefined-name": {
+      "hash": "ce57cc32b560657c",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: An expression attribute name used in the document path is not defined; attribute name: #x"
+    },
+    "update-undefined-value": {
+      "hash": "91b0bf6b075cd3c9",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: An expression attribute value used in expression is not defined; attribute value: :v"
+    },
+    "update-unused-name": {
+      "hash": "742566904d9028a5",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value provided in ExpressionAttributeNames unused in expressions: keys: {#u}"
+    },
+    "update-unused-value": {
+      "hash": "af2fa0e2c46c0dfc",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value provided in ExpressionAttributeValues unused in expressions: keys: {:w}"
+    },
+    "update-name-shared-with-condition": {
+      "hash": "ea5401996a39bd10",
+      "outcome": "accepted"
+    },
+    "update-value-shared-with-condition": {
+      "hash": "759d581ad7e668c0",
+      "outcome": "accepted"
+    },
+    "query-name-shared-with-filter": {
+      "hash": "5bec205045db1e3b",
+      "outcome": "accepted"
+    },
+    "query-name-shared-with-projection": {
+      "hash": "f335e30adec568a6",
+      "outcome": "accepted"
+    },
+    "scan-values-without-expression": {
+      "hash": "51c858bf8d2dfcd0",
+      "outcome": "rejected",
+      "message": "ExpressionAttributeValues can only be specified when using expressions"
+    },
+    "get-names-without-expression": {
+      "hash": "cb8ccd24a19c190d",
+      "outcome": "rejected",
+      "message": "ExpressionAttributeNames can only be specified when using expressions"
+    },
+    "key-condition-or": {
+      "hash": "3c4d06067ad5520f",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Invalid operator used in KeyConditionExpression"
+    },
+    "key-condition-not-equal": {
+      "hash": "385c9f84c803b34e",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Invalid operator used in KeyConditionExpression"
+    },
+    "key-condition-not": {
+      "hash": "b5a194c8604438d7",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Invalid operator used in KeyConditionExpression"
+    },
+    "key-condition-in": {
+      "hash": "5dc159e3c83a2709",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Invalid operator used in KeyConditionExpression"
+    },
+    "key-condition-contains": {
+      "hash": "628a1cc65bbdd722",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Invalid operator used in KeyConditionExpression"
+    },
+    "key-condition-size": {
+      "hash": "27169b3c87d1d186",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: KeyConditionExpressions cannot contain nested operations"
+    },
+    "key-condition-begins-with": {
+      "hash": "d10761247a8e01b7",
+      "outcome": "accepted"
+    },
+    "key-condition-between": {
+      "hash": "558833829d261fe1",
+      "outcome": "accepted"
+    },
+    "condition-if-not-exists": {
+      "hash": "68434f96c439dd54",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: The function is not allowed in a condition expression; function: if_not_exists"
+    },
+    "condition-list-append": {
+      "hash": "40bdd7b0e7f3be0a",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: The function is not allowed in a condition expression; function: list_append"
+    },
+    "update-if-not-exists-rhs": {
+      "hash": "35597b25805d7b54",
+      "outcome": "accepted"
+    },
+    "update-list-append-rhs": {
+      "hash": "f1753caf3cb6179b",
+      "outcome": "accepted"
+    },
+    "update-function-lhs": {
+      "hash": "54927d2dfb5639d1",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"(\", near: \"if_not_exists(a\""
+    },
+    "update-condition-function-in-set": {
+      "hash": "eacd285999e8cd2b",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: The function is not allowed in an update expression; function: attribute_exists"
+    },
+    "projection-function": {
+      "hash": "fe3f79313493e0fa",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Syntax error; token: \"(\", near: \"size(l\""
+    },
+    "filter-functions": {
+      "hash": "d601a90caf8ac981",
+      "outcome": "accepted"
+    },
+    "update-clause-repeated": {
+      "hash": "a0e263cb0bd57707",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: The \"SET\" section can only be used once in an update expression;"
+    },
+    "update-clauses-any-order": {
+      "hash": "b0e44cef297f1383",
+      "outcome": "accepted"
+    },
+    "update-overlapping-paths": {
+      "hash": "c9081cabeecc27f4",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "update-empty": {
+      "hash": "b89c7d56bda8f236",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: The expression can not be empty;"
+    },
+    "update-missing-operand": {
+      "hash": "0969583e55a6cea4",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \"<EOF>\", near: \"=\""
+    },
+    "condition-unbalanced-paren": {
+      "hash": "ea46c6d81b871298",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Syntax error; token: \"<EOF>\", near: \"a\""
+    },
+    "projection-under-4kb": {
+      "hash": "6ab5b4ea591efb3c",
+      "outcome": "accepted"
+    },
+    "projection-over-4kb": {
+      "hash": "5cf84351fc64b364",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Expression size has exceeded the maximum allowed size;"
+    },
+    "filter-299-operators": {
+      "hash": "62488757234299a5",
+      "outcome": "accepted"
+    },
+    "filter-301-operators": {
+      "hash": "0d7579b2983d2754",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: The expression contains too many operators; operator count: 301"
+    },
+    "filter-in-100-operands": {
+      "hash": "3467e2032e836cb4",
+      "outcome": "accepted"
+    },
+    "filter-in-101-operands": {
+      "hash": "489655d9c96485ef",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: The IN operator is provided with too many operands; number of operands: 101"
+    },
+    "update-name-placeholder-255": {
+      "hash": "39490c1a9d45c566",
+      "outcome": "accepted"
+    },
+    "update-name-placeholder-256": {
+      "hash": "50706cfeba6f8aeb",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ExpressionAttributeNames contains invalid key: The expression attribute map contains a key that is too long; size of key: 256"
+    }
+  }
+}
