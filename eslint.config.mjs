@@ -50,13 +50,18 @@ export default defineConfig(
   },
   {
     // Outside tsconfig, so not type-checked.
-    files: ["eslint.config.mjs", "vitest.config.ts", "scripts/*.mjs"],
+    files: ["eslint.config.mjs", "vitest.config.ts", "scripts/*.mjs", "test/**/*.mjs"],
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    files: ["eslint.config.mjs", "scripts/*.mjs"],
+    files: ["eslint.config.mjs", "scripts/*.mjs", "test/**/*.mjs"],
     languageOptions: {
-      globals: { console: "readonly", process: "readonly", URL: "readonly" },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        TextDecoder: "readonly",
+        URL: "readonly",
+      },
     },
   },
   {

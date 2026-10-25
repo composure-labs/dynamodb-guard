@@ -42,6 +42,18 @@ Auto-fix with `npm run format` and `npx eslint . --fix`. If you change `.github/
 - **Commits and PR titles** use [Conventional Commits](https://www.conventionalcommits.org/): `<type>(<scope>): <description>`.
 - **No CHANGELOG file.** Releases use generated GitHub Release notes, so describe behaviour changes in the PR body.
 
+## The conformance corpus
+
+The checker is specified by DynamoDB itself. [`test/corpus/cases.mjs`](test/corpus/cases.mjs) lists requests with at most one fault each, and [`test/corpus/recorded.json`](test/corpus/recorded.json) is what real DynamoDB said about each one. CI only replays the recording, and `recording.test.mjs` fails if a case has no recording, has changed since it was recorded, or disagrees with its `fault`.
+
+To add or change a case, edit `cases.mjs`, writing your best guess at the `fault` where the docs don't settle it. Then re-record against the sandbox account:
+
+```sh
+AWS_PROFILE=<profile> AWS_REGION=<region> npm run corpus:record
+```
+
+[`scripts/record-corpus.mjs`](scripts/record-corpus.mjs) creates a temporary on-demand table, runs every case and deletes the table. It costs well under a cent, and lists every case DynamoDB judged differently from its `fault`. Correct those faults, and commit `cases.mjs` and `recorded.json` together.
+
 ## Releasing
 
 Maintainers run the **Release** workflow by hand with the version to publish. It runs `verify`, then submits the version to npm with [staged publishing](https://docs.npmjs.com/staged-publishing/) through trusted publishing (OIDC), and drafts the GitHub Release. Nothing is public yet. To finish the release:
