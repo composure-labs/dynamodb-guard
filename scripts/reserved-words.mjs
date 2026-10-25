@@ -28,10 +28,11 @@ if (block === undefined) {
   console.error("✗ The page has no word list where it used to; check the page and this parser.");
   process.exit(1);
 }
-const published = block
-  .replaceAll(/<[^>]+>/g, "")
-  .split(/\s+/)
-  .filter(Boolean)
+// Words are whitespace-separated runs of capitals and underscores. Matching
+// only those, rather than stripping tags, keeps the page's markup (a copy
+// button) out of the list and guarantees nothing else reaches src/.
+const published = [...block.matchAll(/(?<=^|\s)[A-Z][A-Z_]*(?=\s|$)/g)]
+  .map(([word]) => word)
   .sort();
 
 const current =
