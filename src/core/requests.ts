@@ -62,6 +62,7 @@ export function findRequests(value: unknown, operation?: string): RequestSite[] 
     });
   }
   // BatchWriteItem's RequestItems hold arrays of writes, which carry no expressions.
+  // The lint rule's operationOf recognises these same places in source.
   if (isRecord(tables)) {
     for (const [table, request] of Object.entries(tables)) {
       if (isRecord(request)) {

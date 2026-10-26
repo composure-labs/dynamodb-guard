@@ -65,7 +65,8 @@ const isAssembled = (node: Node): boolean =>
 
 /**
  * The operation this object is sent to, when its place says: the call or
- * `new` it is an argument to, or the transaction item key it sits under.
+ * `new` it is an argument to, the transaction item key it sits under, or the
+ * `RequestItems` it is a table of. These are the places `findRequests` reads.
  */
 function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
   name?: string;
@@ -73,8 +74,15 @@ function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
 } {
   const parent = node.parent;
   if (parent.type === "Property") {
-    const key = parent.value === node ? keyOf(parent) : undefined;
-    return key !== undefined && TRANSACT.has(key) ? { name: key, dynamo: true } : { dynamo: false };
+    if (parent.value !== node) return { dynamo: false };
+    const key = keyOf(parent);
+    if (key !== undefined && TRANSACT.has(key)) return { name: key, dynamo: true };
+    // A table's own key is often computed, so only the key above it is read.
+    const tables = parent.parent;
+    const above = tables.type === "ObjectExpression" ? tables.parent : undefined;
+    return above?.type === "Property" && above.value === tables && keyOf(above) === "RequestItems"
+      ? { name: "BatchGetItem", dynamo: true }
+      : { dynamo: false };
   }
   if (parent.type !== "CallExpression" && parent.type !== "NewExpression") return { dynamo: false };
   const callee = parent.callee;

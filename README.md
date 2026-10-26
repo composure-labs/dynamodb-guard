@@ -178,13 +178,14 @@ An object counts as a DynamoDB request when it has a request field and something
 - an object with `UpdateExpression` or `KeyConditionExpression`;
 - an object with any expression and a sibling `TableName` or `ExpressionAttribute*`;
 - an argument to `new …Command(…)` or a CDK `Dynamo*` task, including the camelCase props (`updateExpression`, `expressionAttributeNames`);
-- a transaction item's `Update`, `ConditionCheck`, `Put`, `Delete` or `Get`.
+- a transaction item's `Update`, `ConditionCheck`, `Put`, `Delete` or `Get`;
+- a table of a `BatchGetItem`'s `RequestItems`, under a literal or computed key.
 
 How it treats each kind of value:
 
 - **Expressions and maps written as literals** are checked together, as a request.
 - **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
-- **A `GetItem`'s `ExpressionAttributeValues`** is ignored, because the SDK drops it.
+- **`ExpressionAttributeValues` on a `GetItem` or a `BatchGetItem` table** is ignored, because the SDK drops it.
 
 Options:
 
