@@ -25,7 +25,12 @@ export interface ParsedExpression {
   readonly values: ReadonlyMap<string, number>;
   /** The paths an update expression's actions write. Empty for other kinds. */
   readonly actionPaths: readonly ActionPath[];
+  /** Each name written without an alias that DynamoDB accepts so, with where it appears. */
+  readonly bareNames: readonly Pick<Token, "text" | "offset">[];
 }
+
+/** The `#placeholder` to suggest for `name`. */
+export const aliasFor = (name: string): string => `#${name.replace(/[^A-Za-z0-9_]/g, "_")}`;
 
 const encoder = new TextEncoder();
 
@@ -72,6 +77,7 @@ class Parser {
   readonly names = new Map<string, number>();
   readonly values = new Map<string, number>();
   readonly actionPaths: ActionPath[] = [];
+  readonly bareNames: Pick<Token, "text" | "offset">[] = [];
   operators = 0;
   #tokens: readonly Token[] = [];
   #pos = 0;
@@ -186,9 +192,11 @@ class Parser {
 
   checkName(token: Pick<Token, "text" | "offset">): void {
     const legal = LEGAL_NAME.test(token.text);
-    if (legal && !isReservedWord(token.text)) return;
-    const alias = `#${token.text.replace(/[^A-Za-z0-9_]/g, "_")}`;
-    const fix = `alias it: ExpressionAttributeNames { "${alias}": "${token.text}" }`;
+    if (legal && !isReservedWord(token.text)) {
+      this.bareNames.push(token);
+      return;
+    }
+    const fix = `alias it: ExpressionAttributeNames { "${aliasFor(token.text)}": "${token.text}" }`;
     if (legal) {
       this.report("reserved-word", `"${token.text}" is a reserved word; ${fix}.`, token);
     } else {

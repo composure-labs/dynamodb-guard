@@ -105,6 +105,7 @@
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^10.0.1",
     "@kjanat/actionlint": "1.17.0",
+    "@types/eslint": "^9.6.1",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "aws-cdk-lib": "^2.93.0",

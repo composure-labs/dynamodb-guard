@@ -8,7 +8,7 @@
 **Catch DynamoDB expression mistakes before deploy.**
 
 > [!WARNING]
-> **Pre-release.** The checker and the `/cdk` and `/testing` guards are in place; `/eslint` is not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
+> **Pre-release.** The checker and all three guards are in place, but the API may still change before 1.0. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
 
 DynamoDB rejects a request whose expression names a [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html) (`status`, `metrics`, `name`, `data` and about 570 more) without an `ExpressionAttributeNames` alias:
 
@@ -154,6 +154,46 @@ The guard comes in three forms:
   ```
 
 It can't see code paths no test runs, clients that aren't mocked, or PartiQL statements. A test against real DynamoDB or DynamoDB Local doesn't need a guard, because the service rejects the request itself.
+
+## Lint (`/eslint`)
+
+```js
+// eslint.config.js
+import dynamodbGuard from "@composure-labs/dynamodb-guard/eslint";
+
+export default [
+  // ...your config...
+  dynamodbGuard.configs.recommended,
+];
+```
+
+The rule `dynamodb-guard/valid-expressions` runs the same checker over every DynamoDB request written as an object literal, and reports each violation at the token:
+
+```
+4:48  error  "metrics" is a reserved word; alias it: ExpressionAttributeNames { "#metrics": "metrics" }.  dynamodb-guard/valid-expressions
+```
+
+An object counts as a DynamoDB request when it has a request field and something else that says DynamoDB. `ConditionExpression`, `FilterExpression` and `ProjectionExpression` exist in other AWS APIs, so on their own they aren't enough. The rule recognises:
+
+- an object with `UpdateExpression` or `KeyConditionExpression`;
+- an object with any expression and a sibling `TableName` or `ExpressionAttribute*`;
+- an argument to `new …Command(…)` or a CDK `Dynamo*` task, including the camelCase props (`updateExpression`, `expressionAttributeNames`);
+- a transaction item's `Update`, `ConditionCheck`, `Put`, `Delete` or `Get`.
+
+How it treats each kind of value:
+
+- **Expressions and maps written as literals** are checked together, as a request.
+- **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
+- **A `GetItem`'s `ExpressionAttributeValues`** is ignored, because the SDK drops it.
+
+Options:
+
+| Option          | Default | Effect                                                                                                                                                                                              |
+| --------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reportDynamic` | `true`  | Reports an expression assembled with `${}` or `+`, whose names can't be checked. The fix is one string, with each name that varies as a `#placeholder`. Turn it off to accept assembled expressions |
+| `aliasAll`      | `false` | Reports every attribute name not written as a `#placeholder`, reserved or not, so the bug can't be written at all. It needs no word list                                                            |
+
+The rule can't see a name that arrives through a variable. `/testing` checks those, using what the code actually sent. The rule's name, its messages and its default severity are public API: tightening any of them is a breaking change.
 
 ## Where this sits in the ecosystem
 

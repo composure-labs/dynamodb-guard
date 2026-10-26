@@ -43,6 +43,12 @@ export interface PartialCheck {
   readonly violations: Violation[];
   /** Fields holding {@link UNKNOWN}, or anything but a string or a map. */
   readonly unknown: (ExpressionField | MapField)[];
+  /** Each name an expression writes without an alias that DynamoDB accepts so. */
+  readonly bareNames: {
+    readonly field: ExpressionField;
+    readonly text: string;
+    readonly offset: number;
+  }[];
 }
 
 /**
@@ -166,6 +172,7 @@ export function checkPartialRequest(request: object): PartialCheck {
     ExpressionAttributeValues: new Set(),
   };
   const violations: Violation[] = [];
+  const bareNames: PartialCheck["bareNames"] = [];
   let expressions: number | undefined = 0;
 
   for (const [field, kind] of Object.entries(EXPRESSION_FIELDS) as [
@@ -182,6 +189,7 @@ export function checkPartialRequest(request: object): PartialCheck {
     if (expressions !== undefined) expressions++;
     const parsed = parseExpression(expression, kind);
     violations.push(...parsed.violations);
+    for (const { text, offset } of parsed.bareNames) bareNames.push({ field, text, offset });
     for (const [mapField, placeholders] of [
       ["ExpressionAttributeNames", parsed.names],
       ["ExpressionAttributeValues", parsed.values],
@@ -213,7 +221,7 @@ export function checkPartialRequest(request: object): PartialCheck {
       violations.push(...mapViolations(field, map, used[field], expressions));
     }
   }
-  return { violations, unknown };
+  return { violations, unknown, bareNames };
 }
 
 /**

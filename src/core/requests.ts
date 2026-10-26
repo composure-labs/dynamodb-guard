@@ -15,7 +15,7 @@ export interface RequestSite {
 }
 
 /** The operations a `TransactWriteItems` or `TransactGetItems` item can hold. */
-const TRANSACT_OPERATIONS = ["Update", "ConditionCheck", "Put", "Delete", "Get"] as const;
+export const TRANSACT_OPERATIONS = ["Update", "ConditionCheck", "Put", "Delete", "Get"] as const;
 
 /**
  * Operations that take no `ExpressionAttributeValues`. The SDK drops the field
