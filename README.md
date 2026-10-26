@@ -8,7 +8,7 @@
 **Catch DynamoDB expression mistakes before deploy.**
 
 > [!WARNING]
-> **Not yet usable.** Nothing is exported yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
+> **Pre-release.** The checker the guards build on is in place; the guards themselves (`/cdk`, `/testing`, `/eslint`) are not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
 
 DynamoDB rejects a request whose expression names a [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html) (`status`, `metrics`, `name`, `data` and about 570 more) without an `ExpressionAttributeNames` alias:
 
@@ -29,6 +29,40 @@ Every guard here runs **before deploy**: in the editor, in lint, in unit tests o
 | A literal in any code                          | `/eslint`  | The editor, and lint |
 
 The root entry point is the checker all three build on. It has no dependencies. `/testing` has none either, so neither needs CDK or ESLint installed. The `/cdk` and `/eslint` entry points need their optional peers.
+
+## The checker
+
+Every guard runs the same checker, which you can also call directly. It is specified by DynamoDB itself: [`test/corpus/`](test/corpus/) records what the real service accepts and rejects, and the checker is tested against that recording.
+
+```ts
+import { assertRequest, checkRequest } from "@composure-labs/dynamodb-guard";
+
+assertRequest({
+  UpdateExpression: "SET #status = :completed, metrics = :metrics",
+  ExpressionAttributeNames: { "#status": "status" },
+  ExpressionAttributeValues: { ":completed": "done", ":metrics": {} },
+});
+// DynamoExpressionError: DynamoDB would reject this request:
+// UpdateExpression: "metrics" is a reserved word; alias it: ExpressionAttributeNames { "#metrics": "metrics" }.
+//   SET #status = :completed, metrics = :metrics
+//                             ^^^^^^^
+//   See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
+```
+
+`checkRequest` returns the violations instead of throwing. It reads only the expression fields and the two attribute maps, so an SDK command's input can be passed as it is. It reports:
+
+| Kind                                                     | DynamoDB rejects                                                                                                                      |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserved-word`                                          | an unaliased [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html), in any letter case |
+| `must-alias`                                             | an unaliased name that isn't an ASCII letter followed by letters, digits or `_` (`1abc`, `my-attr`, `_u`, `café`)                     |
+| `undefined-alias` / `unused-alias`                       | a placeholder with no map entry, or a map entry no expression in the request uses                                                     |
+| `names-without-expression` / `values-without-expression` | either map on a request with no expression                                                                                            |
+| `kind-grammar`                                           | syntax valid elsewhere but not here: `OR` in a key condition, `if_not_exists()` in a condition                                        |
+| `overlapping-paths`                                      | two update actions on overlapping paths (`a` and `a.b`)                                                                               |
+| `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                 |
+| `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                    |
+
+Not yet checked: a function's number of arguments, and repeated paths in a projection.
 
 ## Where this sits in the ecosystem
 

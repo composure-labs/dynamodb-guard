@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The conformance corpus: requests DynamoDB accepts or rejects, each with one
  * fault at most, since DynamoDB reports only the first error it finds.
@@ -40,11 +41,15 @@ export const SEED = {
 };
 
 /** @typedef {"UpdateItem" | "PutItem" | "GetItem" | "Query" | "Scan"} Operation */
-/** @typedef {{ id: string, fault: string | null, op: Operation, input: Record<string, unknown> }} Case */
+/** @typedef {import("../../src/core/violations.js").ViolationKind | null} Fault */
+/** @typedef {{ id: string, fault: Fault, op: Operation, input: Record<string, unknown> }} Case */
 
 /**
  * The request a case sends, less `TableName`. PutItem writes the seed itself,
  * so its condition is evaluated against it.
+ *
+ * @param {Pick<Case, "op" | "input">} testCase
+ * @returns {Record<string, unknown>}
  */
 export function request({ op, input }) {
   switch (op) {
@@ -61,6 +66,8 @@ export function request({ op, input }) {
 /**
  * Identifies everything DynamoDB judged a case on: the operation, the request
  * and the seed. A recording keeps it, so a test can tell when either changed.
+ *
+ * @param {Pick<Case, "op" | "input">} testCase
  */
 export const requestHash = (testCase) =>
   createHash("sha256")
@@ -68,10 +75,18 @@ export const requestHash = (testCase) =>
     .digest("hex")
     .slice(0, 16);
 
-/** What DynamoDB should do with a case. */
+/**
+ * What DynamoDB should do with a case.
+ *
+ * @param {Pick<Case, "fault">} testCase
+ */
 export const expectedOutcome = ({ fault }) => (fault === null ? "accepted" : "rejected");
 
-/** @returns {(id: string, fault: string | null, expression: string | undefined, extra?: object) => Case} */
+/**
+ * @param {Operation} op
+ * @param {string} field
+ * @returns {(id: string, fault: Fault, expression: string | undefined, extra?: Record<string, unknown>) => Case}
+ */
 const builder =
   (op, field) =>
   (id, fault, expression, extra = {}) => ({
@@ -89,24 +104,45 @@ const keyCondition = builder("Query", "KeyConditionExpression");
 
 const V = { ":v": 1 };
 const P = { ":p": "p" };
+/** @param {number} count */
 const range = (count) => Array.from({ length: count }, (_, i) => i);
 
-/** A name of `length` characters, distinct per `i`. */
+/**
+ * A name of `length` characters, distinct per `i`.
+ *
+ * @param {number} i
+ * @param {number} length
+ */
 const longName = (i, length) => `n${String(i)}`.padEnd(length, "x");
 
-/** `count` distinct unaliased names joined into a projection. */
+/**
+ * `count` distinct unaliased names joined into a projection.
+ *
+ * @param {number} count
+ * @param {number} length
+ */
 const longProjection = (count, length) =>
   range(count)
     .map((i) => longName(i, length))
     .join(", ");
 
-/** `clauses` comparisons joined by OR: `clauses` comparators plus `clauses - 1` ORs. */
+/**
+ * `clauses` comparisons joined by OR: `clauses` comparators plus `clauses - 1` ORs.
+ *
+ * @param {number} clauses
+ */
 const orChain = (clauses) =>
   range(clauses)
     .map(() => "a = :v")
     .join(" OR ");
 
-/** A filter with `count` operands to IN. */
+/**
+ * A filter with `count` operands to IN.
+ *
+ * @param {string} id
+ * @param {Fault} fault
+ * @param {number} count
+ */
 const inCase = (id, fault, count) => {
   const placeholders = range(count).map((i) => `:v${String(i)}`);
   return filter(id, fault, `a IN (${placeholders.join(", ")})`, {
@@ -114,7 +150,13 @@ const inCase = (id, fault, count) => {
   });
 };
 
-/** An update through a name placeholder `length` characters long, `#` included. */
+/**
+ * An update through a name placeholder `length` characters long, `#` included.
+ *
+ * @param {string} id
+ * @param {Fault} fault
+ * @param {number} length
+ */
 const placeholderCase = (id, fault, length) => {
   const placeholder = `#${"x".repeat(length - 1)}`;
   return update(id, fault, `SET ${placeholder} = :v`, {
