@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatViolations } from "../../src/core/check.js";
-import { RESERVED_WORDS } from "../../src/core/reserved-words.js";
+import { checkPartialRequest, formatViolations, UNKNOWN } from "../../src/core/check.js";
+import { isReservedWord, RESERVED_WORDS } from "../../src/core/reserved-words.js";
 import {
   assertRequest,
   checkExpression,
   checkRequest,
   DynamoExpressionError,
   type ExpressionKind,
-  isReservedWord,
 } from "../../src/index.js";
 
 const kinds = (expression: string, kind: ExpressionKind) =>
@@ -186,5 +185,41 @@ describe("assertRequest", () => {
     const violations = checkRequest({ ExpressionAttributeNames: { "#a": "a" } });
 
     expect(formatViolations({}, violations).split("\n")).toHaveLength(2);
+  });
+});
+
+describe("checkPartialRequest", () => {
+  it("doesn't report entries unused when an expression is unknown", () => {
+    const { violations, unknown } = checkPartialRequest({
+      UpdateExpression: UNKNOWN,
+      ConditionExpression: "attribute_exists(status)",
+      ExpressionAttributeValues: { ":v": 1 },
+    });
+
+    expect(violations.map((v) => v.kind)).toEqual(["reserved-word"]);
+    expect(unknown).toEqual(["UpdateExpression"]);
+  });
+
+  it("doesn't report a map without an expression when one is unknown", () => {
+    const { violations } = checkPartialRequest({
+      ProjectionExpression: UNKNOWN,
+      ExpressionAttributeNames: { "#a": "a" },
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("judges each map on its own: an unknown map hides only its own placeholders", () => {
+    const { violations, unknown } = checkPartialRequest({
+      UpdateExpression: "SET #a = :v",
+      ExpressionAttributeNames: UNKNOWN,
+      ExpressionAttributeValues: { ":w": 1 },
+    });
+
+    expect(violations.map((v) => [v.kind, v.token])).toEqual([
+      ["undefined-alias", ":v"],
+      ["unused-alias", ":w"],
+    ]);
+    expect(unknown).toEqual(["ExpressionAttributeNames"]);
   });
 });

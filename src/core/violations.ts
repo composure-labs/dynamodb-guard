@@ -7,6 +7,15 @@ export const EXPRESSION_FIELDS = {
   ProjectionExpression: "projection",
 } as const;
 
+/** The request fields that hold placeholders' definitions, and each one's sigil. */
+export const MAP_FIELDS = {
+  ExpressionAttributeNames: "#",
+  ExpressionAttributeValues: ":",
+} as const;
+
+/** A request field that holds placeholders' definitions. */
+export type MapField = keyof typeof MAP_FIELDS;
+
 /** A request field that holds an expression. */
 export type ExpressionField = keyof typeof EXPRESSION_FIELDS;
 
@@ -14,8 +23,7 @@ export type ExpressionField = keyof typeof EXPRESSION_FIELDS;
 export type ExpressionKind = (typeof EXPRESSION_FIELDS)[ExpressionField];
 
 /** Where a violation was found: an expression, or one of the attribute maps. */
-export type ViolationField =
-  ExpressionField | "ExpressionAttributeNames" | "ExpressionAttributeValues";
+export type ViolationField = ExpressionField | MapField;
 
 /**
  * What is wrong. Each kind is one way DynamoDB rejects a request with a
