@@ -1,4 +1,4 @@
-import { isRecord, UNKNOWN } from "../core/check.js";
+import { isRecord, UNKNOWN } from "../../core/check.js";
 
 /**
  * Stands in for each CloudFormation intrinsic in a `DefinitionString`, so the

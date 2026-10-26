@@ -1,4 +1,11 @@
-import { type DynamoRequest, isRecord } from "./check.js";
+import {
+  checkPartialRequest,
+  type DynamoRequest,
+  formatViolations,
+  isRecord,
+  type PartialCheck,
+} from "./check.js";
+import type { Violation } from "./violations.js";
 
 /** One request found by {@link findRequests}, and where it sits in the value searched. */
 export interface RequestSite {
@@ -20,9 +27,11 @@ const WITHOUT_VALUES = new Set(["get", "getitem", "batchget", "batchgetitem"]);
 const normalize = (operation: string): string => operation.replace(/Command$/, "").toLowerCase();
 
 const withoutValues = (request: Record<string, unknown>): DynamoRequest =>
-  Object.fromEntries(
-    Object.entries(request).filter(([key]) => key !== "ExpressionAttributeValues"),
-  );
+  "ExpressionAttributeValues" in request
+    ? Object.fromEntries(
+        Object.entries(request).filter(([key]) => key !== "ExpressionAttributeValues"),
+      )
+    : request;
 
 /**
  * Finds the DynamoDB requests in a value by their shape, not by command class:
@@ -65,3 +74,32 @@ export function findRequests(value: unknown, operation?: string): RequestSite[] 
   }
   return sites;
 }
+
+/** A request {@link checkRequestsIn} found, and what checking it found. */
+export interface CheckedSite extends RequestSite, PartialCheck {}
+
+/**
+ * {@link findRequests}, with each request checked by `checkPartialRequest`:
+ * the loop every guard runs over the value it was given.
+ */
+export const checkRequestsIn = (value: unknown, operation?: string): CheckedSite[] =>
+  findRequests(value, operation).map((site) => ({ ...site, ...checkPartialRequest(site.request) }));
+
+/**
+ * One block per site that has violations: its label, then its violations
+ * indented under it, as every guard reports them.
+ */
+export const formatSites = (
+  sites: readonly {
+    readonly label: string;
+    readonly request: DynamoRequest;
+    readonly violations: readonly Violation[];
+  }[],
+): string =>
+  sites
+    .filter((site) => site.violations.length > 0)
+    .map(
+      ({ label, request, violations }) =>
+        `${label}:\n${formatViolations(request, violations).replaceAll(/^/gm, "  ")}`,
+    )
+    .join("\n");

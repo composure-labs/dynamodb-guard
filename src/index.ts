@@ -10,8 +10,6 @@ export {
   DynamoExpressionError,
   type DynamoRequest,
 } from "./core/check.js";
-export { findRequests, type RequestSite } from "./core/requests.js";
-export { isReservedWord } from "./core/reserved-words.js";
 export type {
   ExpressionField,
   ExpressionKind,

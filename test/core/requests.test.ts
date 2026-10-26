@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRequests } from "../../src/index.js";
+import { findRequests } from "../../src/core/requests.js";
 
 describe("findRequests", () => {
   it("returns the value itself as a request", () => {

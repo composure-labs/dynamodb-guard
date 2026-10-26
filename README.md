@@ -64,8 +64,6 @@ assertRequest({
 
 Not yet checked: a function's number of arguments, and repeated paths in a projection.
 
-`findRequests(value, operation?)` finds the requests inside a value by their shape: the value itself, each item of `TransactItems`, and each table of a `BatchGetItem`. The guards use it to reach every request in a transaction, and it leaves out the `ExpressionAttributeValues` of a `GetItem` (or a transaction's `Get`), which the SDK drops without sending.
-
 ## Step Functions, at synth (`/cdk`)
 
 ```ts
@@ -92,14 +90,16 @@ state "Complete" (dynamodb:updateItem) Parameters:
 - **`throw`** (the default) fails synth, listing every violation in the state machine. It throws, not `Annotations.addError`, because only the CDK CLI acts on an error annotation: `app.synth()` and `Template.fromStack()` in a unit test would carry on.
 - **`warn`** adds a warning to each state machine instead, with the id `DYNAMODB_EXPRESSION_WARNING`, which `Annotations.of(scope).acknowledgeWarning(...)` accepts. To adopt the policy on an existing estate, run `warn`, fix the list, then switch to `throw`.
 
+`reportUnchecked: true` adds an info annotation to each state machine, listing what the policy couldn't check (see below). It is off by default, because in a large app every dynamic field adds a line to `cdk synth`.
+
 On `aws-cdk-lib` releases that have `AspectPriority`, the policy runs after any Aspect that changes a definition. Older releases run Aspects in the order they were added, so call the policy last.
 
 ### What it can't see
 
-A value whose text isn't known at synth is skipped, never guessed at, and each state machine with any lists them in an info annotation:
+A value whose text isn't known at synth is skipped, never guessed at. With `reportUnchecked`, each state machine lists what it skipped, and any definition it couldn't read, in an info annotation:
 
 - a JSONPath `.$` field (`"UpdateExpression.$": "States.Format(...)"`), a JSONata `{% %}` value, a CDK token, and a `DefinitionSubstitutions` placeholder. When an expression is skipped, the request's unused entries aren't reported, because the skipped expression may use them. When a map is skipped, undefined placeholders aren't reported, because the map may define them;
-- a definition in S3 (`definitionS3Location`), or one that is a CloudFormation intrinsic other than `Fn::Join`; each is reported as an info annotation;
+- a definition in S3 (`definitionS3Location`), or one that is a CloudFormation intrinsic other than `Fn::Join`;
 - a definition changed with `addPropertyOverride`, which the policy doesn't read;
 - expressions in Lambda code (use `/testing`), `AwsCustomResource` calls, AppSync resolvers and PartiQL statements.
 

@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { checkPartialRequest, formatViolations, UNKNOWN } from "../../src/core/check.js";
-import { RESERVED_WORDS } from "../../src/core/reserved-words.js";
+import { isReservedWord, RESERVED_WORDS } from "../../src/core/reserved-words.js";
 import {
   assertRequest,
   checkExpression,
   checkRequest,
   DynamoExpressionError,
   type ExpressionKind,
-  isReservedWord,
 } from "../../src/index.js";
 
 const kinds = (expression: string, kind: ExpressionKind) =>
