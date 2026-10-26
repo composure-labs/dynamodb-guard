@@ -8,7 +8,7 @@
 **Catch DynamoDB expression mistakes before deploy.**
 
 > [!WARNING]
-> **Pre-release.** The checker and the `/cdk` guard are in place; `/testing` and `/eslint` are not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
+> **Pre-release.** The checker and the `/cdk` and `/testing` guards are in place; `/eslint` is not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
 
 DynamoDB rejects a request whose expression names a [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html) (`status`, `metrics`, `name`, `data` and about 570 more) without an `ExpressionAttributeNames` alias:
 
@@ -102,6 +102,58 @@ A value whose text isn't known at synth is skipped, never guessed at. With `repo
 - a definition in S3 (`definitionS3Location`), or one that is a CloudFormation intrinsic other than `Fn::Join`;
 - a definition changed with `addPropertyOverride`, which the policy doesn't read;
 - expressions in Lambda code (use `/testing`), `AwsCustomResource` calls, AppSync resolvers and PartiQL statements.
+
+## Handler code, in unit tests (`/testing`)
+
+Unit tests with a mocked client accept any string, so a handler that sends DynamoDB a bad expression passes its tests and fails on its first real call. `/testing` checks every request the mock recorded. Because it reads what was actually sent, a name built at runtime is checked like a literal one.
+
+```ts
+import { mockClient } from "aws-sdk-client-mock";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { assertValidDynamoRequests } from "@composure-labs/dynamodb-guard/testing";
+
+const ddb = mockClient(DynamoDBDocumentClient);
+
+// In a setup file, this guards every test, so nobody has to remember to.
+afterEach(() => {
+  assertValidDynamoRequests(ddb);
+  ddb.reset();
+});
+```
+
+```
+Error: DynamoDB would reject a request:
+call 0 (UpdateCommand):
+  UpdateExpression: "metrics" is a reserved word; alias it: ExpressionAttributeNames { "#metrics": "metrics" }.
+    SET #status = :completed, metrics = :metrics
+                              ^^^^^^^
+    See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
+```
+
+It has no peer dependencies, and it doesn't import a mocking library. It reads the source by shape:
+
+- an [`aws-sdk-client-mock`](https://github.com/m-radzikowski/aws-sdk-client-mock) stub, or anything whose `calls()` returns `{ args }` records;
+- a Vitest or Jest mock function, such as `vi.spyOn(client, "send")`. Clear it after each check (`mockClear()`, or `clearMocks: true`), as `ddb.reset()` does above, or each test re-checks every call before it;
+- an array of SDK commands, or of their inputs.
+
+Requests are found by shape too, so `DynamoDBClient`, `DynamoDBDocumentClient` and wrappers that keep the SDK's input shape all work. That includes each item of a transaction and each table of a `BatchGetItem`. A `GetItem`'s `ExpressionAttributeValues` is ignored, because the SDK drops it without sending it.
+
+The guard comes in three forms:
+
+- `assertValidDynamoRequests(source)` throws, listing every rejected request.
+- `rejectedDynamoRequests(source)` returns them, each with its call number, command name, path and violations.
+- `dynamodbGuardMatchers` is for `expect.extend`, and gives `expect(ddb).toHaveOnlyValidDynamoRequests()`. The matcher's type is yours to declare:
+
+  ```ts
+  expect.extend(dynamodbGuardMatchers);
+  declare module "vitest" {
+    interface Matchers {
+      toHaveOnlyValidDynamoRequests(): void;
+    }
+  }
+  ```
+
+It can't see code paths no test runs, clients that aren't mocked, or PartiQL statements. A test against real DynamoDB or DynamoDB Local doesn't need a guard, because the service rejects the request itself.
 
 ## Where this sits in the ecosystem
 
