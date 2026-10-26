@@ -4,8 +4,9 @@ import {
   EXPRESSION_FIELDS,
   type ExpressionField,
   type ExpressionKind,
+  MAP_FIELDS,
+  type MapField,
   type Violation,
-  type ViolationKind,
 } from "./violations.js";
 
 /** The most bytes DynamoDB accepts in one `#name` or `:value` placeholder. */
@@ -26,7 +27,23 @@ export interface DynamoRequest {
   readonly ExpressionAttributeValues?: Readonly<Record<string, unknown>>;
 }
 
-type MapField = "ExpressionAttributeNames" | "ExpressionAttributeValues";
+/**
+ * Stands for a value whose text a guard can't know, such as a Step Functions
+ * `.$` field or an ESLint rule's non-literal: an expression, a map, or one
+ * name in `ExpressionAttributeNames`. A `Symbol.for` brand, so the ESM and
+ * CommonJS copies of this package agree on it.
+ */
+export const UNKNOWN: unique symbol = Symbol.for("@composure-labs/dynamodb-guard/unknown") as never;
+
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** What {@link checkPartialRequest} found, and which fields it couldn't check. */
+export interface PartialCheck {
+  readonly violations: Violation[];
+  /** Fields holding {@link UNKNOWN}, or anything but a string or a map. */
+  readonly unknown: (ExpressionField | MapField)[];
+}
 
 /**
  * Checks one expression on its own: names, grammar for its kind, and limits.
@@ -46,11 +63,15 @@ const contains = (a: readonly string[], b: readonly string[]): boolean =>
 
 function overlappingPaths(
   paths: readonly ActionPath[],
-  names: DynamoRequest["ExpressionAttributeNames"],
+  names: Readonly<Record<string, unknown>> | undefined,
 ): Violation[] {
-  // Compare what DynamoDB compares: the paths with `#name` placeholders resolved.
+  // Compare what DynamoDB compares: the paths with `#name` placeholders
+  // resolved. A name not known stands for itself, so it overlaps only itself.
   const resolved = paths.map(({ segments }) =>
-    segments.map((segment) => (segment.startsWith("#") ? (names?.[segment] ?? segment) : segment)),
+    segments.map((segment) => {
+      const name = segment.startsWith("#") ? names?.[segment] : undefined;
+      return typeof name === "string" ? name : segment;
+    }),
   );
   const violations: Violation[] = [];
   resolved.forEach((later, j) => {
@@ -71,18 +92,25 @@ function overlappingPaths(
   return violations;
 }
 
+/**
+ * `map`'s own violations: entries no expression uses, a map on a request with
+ * no expression, and over-long placeholders. `expressions` is how many the
+ * request has; `undefined` when one of them isn't known, which could use any
+ * entry.
+ */
 function mapViolations(
   field: MapField,
-  withoutExpression: ViolationKind,
-  map: Readonly<Record<string, unknown>> | undefined,
+  map: Readonly<Record<string, unknown>>,
   used: ReadonlySet<string>,
-  hasExpression: boolean,
+  expressions: number | undefined,
 ): Violation[] {
-  if (map === undefined) return [];
-  if (!hasExpression) {
+  if (expressions === 0) {
     return [
       {
-        kind: withoutExpression,
+        kind:
+          field === "ExpressionAttributeNames"
+            ? "names-without-expression"
+            : "values-without-expression",
         field,
         message: `${field} can only be given with an expression; this request has none.`,
       },
@@ -90,7 +118,7 @@ function mapViolations(
   }
   const violations: Violation[] = [];
   const unused = Object.keys(map).filter((key) => !used.has(key));
-  if (unused.length > 0) {
+  if (expressions !== undefined && unused.length > 0) {
     const [verb, them] = unused.length === 1 ? ["is", "it"] : ["are", "them"];
     violations.push({
       kind: "unused-alias",
@@ -118,67 +146,84 @@ function mapViolations(
 }
 
 /**
+ * {@link checkRequest} for a request some of whose fields a guard can't know.
+ * Each rule judges only what it can: an unknown expression may use any
+ * placeholder, so no entry is reported unused; an unknown map may define any,
+ * so none of its placeholders is reported undefined.
+ */
+export function checkPartialRequest(request: object): PartialCheck {
+  const fields = request as Readonly<Record<string, unknown>>;
+  const unknown: PartialCheck["unknown"] = [];
+  const maps: Partial<Record<MapField, Readonly<Record<string, unknown>> | typeof UNKNOWN>> = {};
+  for (const field of Object.keys(MAP_FIELDS) as MapField[]) {
+    const map = fields[field];
+    if (map === undefined) continue;
+    maps[field] = isRecord(map) ? map : UNKNOWN;
+    if (!isRecord(map)) unknown.push(field);
+  }
+  const used: Record<MapField, Set<string>> = {
+    ExpressionAttributeNames: new Set(),
+    ExpressionAttributeValues: new Set(),
+  };
+  const violations: Violation[] = [];
+  let expressions: number | undefined = 0;
+
+  for (const [field, kind] of Object.entries(EXPRESSION_FIELDS) as [
+    ExpressionField,
+    ExpressionKind,
+  ][]) {
+    const expression = fields[field];
+    if (expression === undefined) continue;
+    if (typeof expression !== "string") {
+      unknown.push(field);
+      expressions = undefined;
+      continue;
+    }
+    if (expressions !== undefined) expressions++;
+    const parsed = parseExpression(expression, kind);
+    violations.push(...parsed.violations);
+    for (const [mapField, placeholders] of [
+      ["ExpressionAttributeNames", parsed.names],
+      ["ExpressionAttributeValues", parsed.values],
+    ] as const) {
+      const map = maps[mapField];
+      for (const [placeholder, offset] of placeholders) {
+        used[mapField].add(placeholder);
+        if (map === UNKNOWN || (map !== undefined && placeholder in map)) continue;
+        violations.push({
+          kind: "undefined-alias",
+          field,
+          message: `${placeholder} is used but not defined; add it to ${mapField}.`,
+          token: placeholder,
+          offset,
+        });
+      }
+    }
+    if (field === "UpdateExpression") {
+      const names = maps.ExpressionAttributeNames;
+      violations.push(
+        ...overlappingPaths(parsed.actionPaths, names === UNKNOWN ? undefined : names),
+      );
+    }
+  }
+
+  for (const field of Object.keys(MAP_FIELDS) as MapField[]) {
+    const map = maps[field];
+    if (map !== undefined && map !== UNKNOWN) {
+      violations.push(...mapViolations(field, map, used[field], expressions));
+    }
+  }
+  return { violations, unknown };
+}
+
+/**
  * Checks a request as DynamoDB would: every expression it carries, and its
  * `ExpressionAttributeNames` and `ExpressionAttributeValues`, which are shared
  * by all of them. Returns every violation found; an empty array means
  * DynamoDB should accept the expressions.
  */
 export function checkRequest(request: DynamoRequest): Violation[] {
-  const { ExpressionAttributeNames: names, ExpressionAttributeValues: values } = request;
-  const used: Record<MapField, Set<string>> = {
-    ExpressionAttributeNames: new Set(),
-    ExpressionAttributeValues: new Set(),
-  };
-  const violations: Violation[] = [];
-  let hasExpression = false;
-
-  for (const [field, kind] of Object.entries(EXPRESSION_FIELDS) as [
-    ExpressionField,
-    ExpressionKind,
-  ][]) {
-    const expression = request[field];
-    if (typeof expression !== "string") continue;
-    hasExpression = true;
-    const parsed = parseExpression(expression, kind);
-    violations.push(...parsed.violations);
-    for (const [mapField, map, placeholders] of [
-      ["ExpressionAttributeNames", names, parsed.names],
-      ["ExpressionAttributeValues", values, parsed.values],
-    ] as const) {
-      for (const [placeholder, offset] of placeholders) {
-        used[mapField].add(placeholder);
-        if (map === undefined || !(placeholder in map)) {
-          violations.push({
-            kind: "undefined-alias",
-            field,
-            message: `${placeholder} is used but not defined; add it to ${mapField}.`,
-            token: placeholder,
-            offset,
-          });
-        }
-      }
-    }
-    if (field === "UpdateExpression")
-      violations.push(...overlappingPaths(parsed.actionPaths, names));
-  }
-
-  violations.push(
-    ...mapViolations(
-      "ExpressionAttributeNames",
-      "names-without-expression",
-      names,
-      used.ExpressionAttributeNames,
-      hasExpression,
-    ),
-    ...mapViolations(
-      "ExpressionAttributeValues",
-      "values-without-expression",
-      values,
-      used.ExpressionAttributeValues,
-      hasExpression,
-    ),
-  );
-  return violations;
+  return checkPartialRequest(request).violations;
 }
 
 /** Each violation on its own lines: the message, a caret under the token, and the AWS doc. */

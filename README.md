@@ -8,7 +8,7 @@
 **Catch DynamoDB expression mistakes before deploy.**
 
 > [!WARNING]
-> **Pre-release.** The checker the guards build on is in place; the guards themselves (`/cdk`, `/testing`, `/eslint`) are not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
+> **Pre-release.** The checker and the `/cdk` guard are in place; `/testing` and `/eslint` are not yet. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
 
 DynamoDB rejects a request whose expression names a [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html) (`status`, `metrics`, `name`, `data` and about 570 more) without an `ExpressionAttributeNames` alias:
 
@@ -63,6 +63,45 @@ assertRequest({
 | `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                    |
 
 Not yet checked: a function's number of arguments, and repeated paths in a projection.
+
+`findRequests(value, operation?)` finds the requests inside a value by their shape: the value itself, each item of `TransactItems`, and each table of a `BatchGetItem`. The guards use it to reach every request in a transaction, and it leaves out the `ExpressionAttributeValues` of a `GetItem` (or a transaction's `Get`), which the SDK drops without sending.
+
+## Step Functions, at synth (`/cdk`)
+
+```ts
+import { dynamodbExpressionPolicy } from "@composure-labs/dynamodb-guard/cdk";
+
+const app = new App();
+// ...stacks...
+dynamodbExpressionPolicy(app);
+```
+
+The policy installs a CDK Aspect that reads every `AWS::StepFunctions::StateMachine` definition after synth and checks each DynamoDB task in it. It covers the optimised integrations (`DynamoUpdateItem`, `DynamoGetItem`, …) and the SDK ones (`CallAwsService`, `arn:aws:states:::aws-sdk:dynamodb:*`), in JSONPath `Parameters` and in JSONata `Arguments`. It looks at every state, including `Parallel` branches and inline or distributed `Map`s, and at each item of a transaction. Because it runs on the synthesised definition, an attribute name interpolated from a variable is checked like any other:
+
+```
+Error: Stack/Machine/Resource: DynamoDB would reject a request this state machine sends.
+state "Complete" (dynamodb:updateItem) Parameters:
+  UpdateExpression: "metrics" is a reserved word; alias it: ExpressionAttributeNames { "#metrics": "metrics" }.
+    SET metrics = :m
+        ^^^^^^^
+    See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
+```
+
+`onViolation` chooses what happens:
+
+- **`throw`** (the default) fails synth, listing every violation in the state machine. It throws, not `Annotations.addError`, because only the CDK CLI acts on an error annotation: `app.synth()` and `Template.fromStack()` in a unit test would carry on.
+- **`warn`** adds a warning to each state machine instead, with the id `DYNAMODB_EXPRESSION_WARNING`, which `Annotations.of(scope).acknowledgeWarning(...)` accepts. To adopt the policy on an existing estate, run `warn`, fix the list, then switch to `throw`.
+
+On `aws-cdk-lib` releases that have `AspectPriority`, the policy runs after any Aspect that changes a definition. Older releases run Aspects in the order they were added, so call the policy last.
+
+### What it can't see
+
+A value whose text isn't known at synth is skipped, never guessed at, and each state machine with any lists them in an info annotation:
+
+- a JSONPath `.$` field (`"UpdateExpression.$": "States.Format(...)"`), a JSONata `{% %}` value, a CDK token, and a `DefinitionSubstitutions` placeholder. When an expression is skipped, the request's unused entries aren't reported, because the skipped expression may use them. When a map is skipped, undefined placeholders aren't reported, because the map may define them;
+- a definition in S3 (`definitionS3Location`), or one that is a CloudFormation intrinsic other than `Fn::Join`; each is reported as an info annotation;
+- a definition changed with `addPropertyOverride`, which the policy doesn't read;
+- expressions in Lambda code (use `/testing`), `AwsCustomResource` calls, AppSync resolvers and PartiQL statements.
 
 ## Where this sits in the ecosystem
 
