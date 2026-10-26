@@ -42,6 +42,14 @@ ruleTester.run("valid-expressions", rule, {
       code: `send({ TransactItems: [{ Get: { Key: k, ProjectionExpression: "a", ExpressionAttributeValues: { ":v": v } } }] });`,
     },
     {
+      name: "a BatchGetItem table's ExpressionAttributeValues, which the SDK drops",
+      code: `send(new BatchGetCommand({ RequestItems: { [table]: { Keys: keys, ProjectionExpression: "a", ExpressionAttributeValues: { ":v": v } } } }));`,
+    },
+    {
+      name: "a default for a destructured RequestItems, which is no request",
+      code: `const { RequestItems = { t: { ProjectionExpression: "data" } } } = input;`,
+    },
+    {
       name: "an interpolated expression, with reportDynamic off",
       code: "send({ TableName: 't', UpdateExpression: `SET ${name} = :v` });",
       options: [{ reportDynamic: false }],
@@ -94,6 +102,11 @@ ruleTester.run("valid-expressions", rule, {
       name: "a transaction item, known by the operation it sits under",
       code: `send({ TransactItems: [{ Get: { Key: k, ProjectionExpression: "data" } }] });`,
       errors: [{ messageId: "reserved-word" }],
+    },
+    {
+      name: "a BatchGetItem table, known by the RequestItems it sits under",
+      code: `send({ RequestItems: { [TABLE]: { Keys: keys, ProjectionExpression: "id, data" } } });`,
+      errors: [{ messageId: "reserved-word", column: 74, endColumn: 78 }],
     },
     {
       name: "a CDK DynamoUpdateItem's camelCase props",
