@@ -56,12 +56,11 @@ AWS_PROFILE=<profile> AWS_REGION=<region> npm run corpus:record
 
 ## Releasing
 
-Maintainers run the **Release** workflow by hand with the version to publish. It runs `verify`, then submits the version to npm with [staged publishing](https://docs.npmjs.com/staged-publishing/) through trusted publishing (OIDC), and drafts the GitHub Release. Nothing is public yet. To finish the release:
+Maintainers run the **Release** workflow by hand with the version to publish. It sets the version, runs `verify`, and publishes the tarball `verify` checked to npm through trusted publishing (OIDC), with provenance. It then publishes the GitHub Release, which creates the `v<version>` tag. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`. A prerelease, such as `0.3.0-rc.1`, is published under the `next` dist-tag.
 
-1. Check the staged tarball (`npm stage list @composure-labs/dynamodb-guard`, then `npm stage download <stage-id>`) and approve it with 2FA: `npm stage approve <stage-id>`, or **Approve** under _Staged Packages_ on npmjs.com.
-2. Publish the draft GitHub Release, which creates the `v<version>` tag.
+Nothing approves a run after it starts, so the gate is who can run it: the `npm` environment deploys only from protected branches, and the package's trusted publisher on npmjs.com (GitHub, this repository, `release.yml`, environment `npm`) must allow `npm publish`.
 
-The trusted publisher allows only `npm stage publish`, so CI can never publish on its own. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`.
+If npm publishes and the GitHub Release step fails, don't run the workflow again: the version is already on npm. Create the release by hand, with the commit the run built: `gh release create v<version> --target <sha> --title v<version> --generate-notes`.
 
 ## License
 
