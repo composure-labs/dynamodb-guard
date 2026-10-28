@@ -30,28 +30,33 @@ updates:
       - dependency-name: "typescript"
         versions: [">=7"]
     groups:
-      aws-cdk:
+      # Released in lockstep: bumping one without the rest duplicates
+      # @smithy/* in the tree and breaks client type compatibility.
+      aws-sdk:
         patterns:
-          - "aws-cdk-lib"
-          - "constructs"
+          - "@aws-sdk/*"
       vitest:
         patterns:
           - "vitest"
           - "@vitest/*"
       toolchain:
         patterns:
-          - "typescript"
           - "typescript-eslint"
           - "@typescript-eslint/*"
           - "eslint"
           - "@eslint/*"
           - "@eslint-community/*"
           - "eslint-config-prettier"
-          - "@composurecdk/eslint-plugin"
       # Last, as the catch-all: a dependency joins the first group it matches.
       npm-dependencies:
         patterns:
           - "*"
+        # Left ungrouped, one PR each, so a breaking release fails CI on its
+        # own rather than holding back the catch-all.
+        exclude-patterns:
+          - "aws-cdk-lib"
+          - "@composurecdk/*"
+          - "typescript"
 
   # zizmor, which CI installs from this hash-pinned lock.
   - package-ecosystem: uv
