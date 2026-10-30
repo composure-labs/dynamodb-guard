@@ -1,3 +1,10 @@
+<a href="https://github.com/composure-labs">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/composure-labs/.github/main/brand/lockup-labs-dark.svg">
+    <img alt="Composure Labs" src="https://raw.githubusercontent.com/composure-labs/.github/main/brand/lockup-labs-light.svg" height="36">
+  </picture>
+</a>
+
 # @composure-labs/dynamodb-guard
 
 [![npm version](https://img.shields.io/npm/v/@composure-labs/dynamodb-guard)](https://www.npmjs.com/package/@composure-labs/dynamodb-guard)
@@ -198,11 +205,11 @@ The rule can't see a name that arrives through a variable. `/testing` checks tho
 
 ## Where this sits in the ecosystem
 
-This is a **composure-labs** package: first-party to [composureCDK](https://github.com/laazyj/composureCDK), but released on its own schedule. It depends on no composureCDK package, and works in any CDK app or test suite. Inside the `@composure-labs` scope, the name's prefix says what a package builds on:
+This is a **[Composure Labs](https://github.com/composure-labs)** package: first-party to [ComposureCDK](https://github.com/laazyj/composureCDK), but released on its own schedule. It depends on no ComposureCDK package, and works in any CDK app or test suite. Inside the `@composure-labs` scope, the name's prefix says what a package builds on:
 
 | Prefix          | Builds on                                      |
 | --------------- | ---------------------------------------------- |
-| `composurecdk-` | composureCDK's builders (and so `aws-cdk-lib`) |
+| `composurecdk-` | ComposureCDK's builders (and so `aws-cdk-lib`) |
 | `cdk-`          | plain `aws-cdk-lib`                            |
 | _(none)_        | nothing IaC-specific                           |
 
