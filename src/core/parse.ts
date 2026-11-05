@@ -9,8 +9,8 @@ export const MAX_OPERATORS = 300;
 /** The most operands DynamoDB accepts for `IN`. */
 export const MAX_IN_OPERANDS = 100;
 
-/** A document path an update action writes, as written. */
-export interface ActionPath {
+/** A document path an update action writes or a projection lists, as written. */
+export interface DocumentPath {
   /** Attribute names, `#name` placeholders and `[n]` indexes, in order. */
   readonly segments: readonly string[];
   readonly offset: number;
@@ -23,8 +23,8 @@ export interface ParsedExpression {
   readonly names: ReadonlyMap<string, number>;
   /** Each `:value` placeholder the expression uses, with where it first appears. */
   readonly values: ReadonlyMap<string, number>;
-  /** The paths an update expression's actions write. Empty for other kinds. */
-  readonly actionPaths: readonly ActionPath[];
+  /** The paths an update's actions write or a projection lists. Empty for other kinds. */
+  readonly paths: readonly DocumentPath[];
   /** Each name written without an alias that DynamoDB accepts so, with where it appears. */
   readonly bareNames: readonly Pick<Token, "text" | "offset">[];
 }
@@ -48,19 +48,22 @@ const CLAUSES = new Set(["SET", "REMOVE", "ADD", "DELETE"]);
 const COMPARATORS = new Set(["=", "<>", "<", "<=", ">", ">="]);
 
 /**
- * What each function returns, which decides where it may appear: a `boolean`
- * is a condition on its own, a `value` is an operand in a condition, and an
- * `update` function is an operand on the right of `SET` only.
+ * Each function's number of arguments, and what it returns, which decides where
+ * it may appear: a `boolean` is a condition on its own, a `value` is an operand
+ * in a condition, and an `update` function is an operand on the right of `SET`
+ * only.
  */
-const FUNCTIONS: Readonly<Partial<Record<string, "boolean" | "value" | "update">>> = {
-  attribute_exists: "boolean",
-  attribute_not_exists: "boolean",
-  attribute_type: "boolean",
-  begins_with: "boolean",
-  contains: "boolean",
-  size: "value",
-  if_not_exists: "update",
-  list_append: "update",
+const FUNCTIONS: Readonly<
+  Partial<Record<string, { role: "boolean" | "value" | "update"; arity: 1 | 2 }>>
+> = {
+  attribute_exists: { role: "boolean", arity: 1 },
+  attribute_not_exists: { role: "boolean", arity: 1 },
+  attribute_type: { role: "boolean", arity: 2 },
+  begins_with: { role: "boolean", arity: 2 },
+  contains: { role: "boolean", arity: 2 },
+  size: { role: "value", arity: 1 },
+  if_not_exists: { role: "update", arity: 2 },
+  list_append: { role: "update", arity: 2 },
 };
 
 /** Where a function call appears. */
@@ -76,7 +79,7 @@ class Parser {
   readonly violations: Violation[] = [];
   readonly names = new Map<string, number>();
   readonly values = new Map<string, number>();
-  readonly actionPaths: ActionPath[] = [];
+  readonly paths: DocumentPath[] = [];
   readonly bareNames: Pick<Token, "text" | "offset">[] = [];
   operators = 0;
   #tokens: readonly Token[] = [];
@@ -146,7 +149,7 @@ class Parser {
   // Paths.
 
   /** `name(.name | [n])*`. `arithmetic` is true where `a-b` is a subtraction. */
-  parsePath(arithmetic: boolean): ActionPath {
+  parsePath(arithmetic: boolean): DocumentPath {
     const offset = this.peek().offset;
     const segments = [this.parseSegment(arithmetic)];
     for (;;) {
@@ -213,8 +216,9 @@ class Parser {
   /** Reports a function used where it isn't allowed, then parses the call. */
   parseCall(site: CallSite): void {
     const name = this.next();
-    const role = FUNCTIONS[name.text];
-    if (role === undefined) this.fail(`unknown function "${name.text}"`, name);
+    const fn = FUNCTIONS[name.text];
+    if (fn === undefined) this.fail(`unknown function "${name.text}"`, name);
+    const { role, arity } = fn;
     const call = `${name.text}()`;
     if (site === "condition") {
       if (this.kind === "keyCondition" && name.text !== "begins_with") {
@@ -250,14 +254,23 @@ class Parser {
     this.next(); // "("
     this.operators++;
     const update = site !== "condition" && site !== "operand";
-    if (!this.atPunct(")")) {
-      this.parseOperand(update);
-      while (this.atPunct(",")) {
-        this.next();
-        this.parseOperand(update);
-      }
-    }
+    const takes = `${call} takes ${String(arity)} ${arity === 1 ? "argument" : "arguments"}`;
+    if (this.atPunct(")")) this.fail(takes);
+    const args = this.parseOperands(update);
     this.expectPunct(")");
+    if (args !== arity) this.report("argument-count", `${takes}, not ${String(args)}.`, name);
+  }
+
+  /** Comma-separated operands, returning how many there were. */
+  parseOperands(update: boolean): number {
+    let count = 1;
+    this.parseOperand(update);
+    while (this.atPunct(",")) {
+      this.next();
+      this.parseOperand(update);
+      count++;
+    }
+    return count;
   }
 
   /** A path, a `:value` or a function call: in a condition, or (`update`) on the right of SET. */
@@ -310,7 +323,7 @@ class Parser {
       this.expectPunct(")");
       return;
     }
-    if (this.atCall() && FUNCTIONS[this.peek().text] === "boolean") {
+    if (this.atCall() && FUNCTIONS[this.peek().text]?.role === "boolean") {
       this.parseCall("condition");
       return;
     }
@@ -340,13 +353,7 @@ class Parser {
   parseInList(): void {
     this.expectPunct("(");
     const first = this.peek();
-    let operands = 1;
-    this.parseOperand(false);
-    while (this.atPunct(",")) {
-      this.next();
-      operands++;
-      this.parseOperand(false);
-    }
+    const operands = this.parseOperands(false);
     this.expectPunct(")");
     if (operands > MAX_IN_OPERANDS) {
       this.report("limit", tooMany("IN has # operands", operands, MAX_IN_OPERANDS), first);
@@ -380,7 +387,7 @@ class Parser {
 
   parseAction(clause: string): void {
     if (this.atCall()) this.parseCall("target");
-    else this.actionPaths.push(this.parsePath(false));
+    else this.paths.push(this.parsePath(false));
     if (clause === "SET") {
       this.expectPunct("=");
       this.parseOperand(true);
@@ -401,7 +408,7 @@ class Parser {
   parseProjection(): void {
     for (;;) {
       if (this.atCall()) this.parseCall("projection");
-      else this.parsePath(false);
+      else this.paths.push(this.parsePath(false));
       if (!this.atPunct(",")) return;
       this.next();
     }
