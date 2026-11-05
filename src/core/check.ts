@@ -1,4 +1,4 @@
-import { type ActionPath, byteLength, parseExpression, tooMany } from "./parse.js";
+import { type DocumentPath, byteLength, parseExpression, tooMany } from "./parse.js";
 import {
   DOC_LINKS,
   EXPRESSION_FIELDS,
@@ -68,9 +68,15 @@ const contains = (a: readonly string[], b: readonly string[]): boolean =>
   a.length <= b.length && a.every((segment, i) => segment === b[i]);
 
 function overlappingPaths(
-  paths: readonly ActionPath[],
+  field: ExpressionField,
+  paths: readonly DocumentPath[],
   names: Readonly<Record<string, unknown>> | undefined,
 ): Violation[] {
+  if (paths.length === 0) return [];
+  const [twice, advice] =
+    field === "UpdateExpression"
+      ? ["updated twice", "one update can't act on both. Combine or remove one."]
+      : ["projected twice", "one projection can't list both. Remove one."];
   // Compare what DynamoDB compares: the paths with `#name` placeholders
   // resolved. A name not known stands for itself, so it overlaps only itself.
   const resolved = paths.map(({ segments }) =>
@@ -89,8 +95,8 @@ function overlappingPaths(
     const path = paths[j];
     violations.push({
       kind: "overlapping-paths",
-      field: "UpdateExpression",
-      message: `${first === second ? `"${first}" is updated twice` : `"${first}" and "${second}" overlap`}; one update can't act on both. Combine or remove one.`,
+      field,
+      message: `${first === second ? `"${first}" is ${twice}` : `"${first}" and "${second}" overlap`}; ${advice}`,
       token: show(path.segments),
       offset: path.offset,
     });
@@ -101,8 +107,8 @@ function overlappingPaths(
 /**
  * `map`'s own violations: entries no expression uses, a map on a request with
  * no expression, and over-long placeholders. `expressions` is how many the
- * request has; `undefined` when one of them isn't known, which could use any
- * entry.
+ * request has; `undefined` when one of them isn't known or wasn't parsed to its
+ * end, either of which could use any entry.
  */
 function mapViolations(
   field: MapField,
@@ -189,6 +195,8 @@ export function checkPartialRequest(request: object): PartialCheck {
     if (expressions !== undefined) expressions++;
     const parsed = parseExpression(expression, kind);
     violations.push(...parsed.violations);
+    // A syntax error stops the parse, and what it didn't reach could use any entry.
+    if (parsed.violations.some((v) => v.kind === "syntax")) expressions = undefined;
     for (const { text, offset } of parsed.bareNames) bareNames.push({ field, text, offset });
     for (const [mapField, placeholders] of [
       ["ExpressionAttributeNames", parsed.names],
@@ -207,12 +215,10 @@ export function checkPartialRequest(request: object): PartialCheck {
         });
       }
     }
-    if (field === "UpdateExpression") {
-      const names = maps.ExpressionAttributeNames;
-      violations.push(
-        ...overlappingPaths(parsed.actionPaths, names === UNKNOWN ? undefined : names),
-      );
-    }
+    const names = maps.ExpressionAttributeNames;
+    violations.push(
+      ...overlappingPaths(field, parsed.paths, names === UNKNOWN ? undefined : names),
+    );
   }
 
   for (const field of Object.keys(MAP_FIELDS) as MapField[]) {

@@ -325,6 +325,80 @@ export const CASES = [
     ExpressionAttributeValues: { ...V, ":t": "te" },
   }),
 
+  // A function's number of arguments. DynamoDB can't parse a call with none, so
+  // that is a syntax error; any other wrong count is its own rejection.
+  condition("arity-attribute-exists-none", "syntax", "attribute_exists()"),
+  condition("arity-attribute-exists-two", "argument-count", "attribute_exists(a, b)"),
+  condition("arity-attribute-not-exists-none", "syntax", "attribute_not_exists()"),
+  condition("arity-attribute-not-exists-two", "argument-count", "attribute_not_exists(a, b)"),
+  condition("arity-attribute-type-none", "syntax", "attribute_type()"),
+  condition("arity-attribute-type-one", "argument-count", "attribute_type(a)"),
+  condition("arity-attribute-type-two", null, "attribute_type(a, :t)", {
+    ExpressionAttributeValues: { ":t": "N" },
+  }),
+  condition("arity-attribute-type-three", "argument-count", "attribute_type(a, :t, :t)", {
+    ExpressionAttributeValues: { ":t": "N" },
+  }),
+  filter("arity-begins-with-none", "syntax", "begins_with()"),
+  filter("arity-begins-with-one", "argument-count", "begins_with(s)"),
+  filter("arity-begins-with-three", "argument-count", "begins_with(s, :t, :t)", {
+    ExpressionAttributeValues: { ":t": "te" },
+  }),
+  filter("arity-contains-none", "syntax", "contains()"),
+  filter("arity-contains-one", "argument-count", "contains(l)"),
+  filter("arity-contains-three", "argument-count", "contains(l, :v, :v)", {
+    ExpressionAttributeValues: V,
+  }),
+  filter("arity-size-none", "syntax", "size() > :v", { ExpressionAttributeValues: V }),
+  filter("arity-size-two", "argument-count", "size(l, s) > :v", { ExpressionAttributeValues: V }),
+  update("arity-if-not-exists-none", "syntax", "SET a = if_not_exists()"),
+  update("arity-if-not-exists-one", "argument-count", "SET a = if_not_exists(a)"),
+  update("arity-if-not-exists-three", "argument-count", "SET a = if_not_exists(a, :v, :v)", {
+    ExpressionAttributeValues: V,
+  }),
+  update("arity-list-append-none", "syntax", "SET l = list_append()"),
+  update("arity-list-append-one", "argument-count", "SET l = list_append(l)"),
+  update("arity-list-append-three", "argument-count", "SET l = list_append(l, :l, :l)", {
+    ExpressionAttributeValues: { ":l": [3] },
+  }),
+  keyCondition("arity-key-condition-begins-with", "argument-count", "pk = :p AND begins_with(#d)", {
+    ExpressionAttributeNames: { "#d": "data" },
+    ExpressionAttributeValues: P,
+  }),
+
+  // Paths a projection lists: DynamoDB rejects an overlap as well as an exact
+  // repeat, then accepts the paths that only look like one.
+  projection("projection-repeated", "overlapping-paths", "a, a"),
+  projection("projection-repeated-nested", "overlapping-paths", "n.m, n.m"),
+  projection("projection-repeated-index", "overlapping-paths", "l[0], l[0]"),
+  projection("projection-overlap-child-second", "overlapping-paths", "n, n.m"),
+  projection("projection-overlap-child-first", "overlapping-paths", "n.m, n"),
+  projection("projection-overlap-index", "overlapping-paths", "l, l[0]"),
+  projection("projection-repeated-through-alias", "overlapping-paths", "#x, a", {
+    ExpressionAttributeNames: { "#x": "a" },
+  }),
+  projection("projection-repeated-two-aliases", "overlapping-paths", "#x, #y", {
+    ExpressionAttributeNames: { "#x": "a", "#y": "a" },
+  }),
+  projection("projection-repeated-same-alias", "overlapping-paths", "#x, #x", {
+    ExpressionAttributeNames: { "#x": "a" },
+  }),
+  projection("projection-overlap-through-alias", "overlapping-paths", "#x.m, n", {
+    ExpressionAttributeNames: { "#x": "n" },
+  }),
+  keyCondition("query-projection-repeated", "overlapping-paths", "pk = :p", {
+    ProjectionExpression: "a, a",
+    ExpressionAttributeValues: P,
+  }),
+  projection("projection-distinct-prefix", null, "a, ab"),
+  projection("projection-distinct-case", null, "a, A"),
+  projection("projection-sibling-members", null, "n.m, n.x"),
+  projection("projection-sibling-indexes", null, "l[0], l[1]"),
+  // An alias is one attribute name, whatever it holds: "n.m" isn't inside `n`.
+  projection("projection-alias-holds-dot", null, "#x, n", {
+    ExpressionAttributeNames: { "#x": "n.m" },
+  }),
+
   // Clause structure and syntax.
   update("update-clause-repeated", "syntax", "SET a = :v SET b = :v", {
     ExpressionAttributeValues: V,

@@ -7,7 +7,7 @@
  *
  * It creates one on-demand table named `dynamodb-guard-corpus-<timestamp>`,
  * re-seeds the item before each case so updates can't leak between cases, and
- * deletes the table at the end, on failure too. About 140 requests: well under
+ * deletes the table at the end, on failure too. About 220 requests: well under
  * a cent.
  *
  * A ValidationException is a rejection, and the message is kept. A

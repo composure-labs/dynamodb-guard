@@ -65,6 +65,45 @@ describe("checkExpression", () => {
     );
   });
 
+  it("names the function and both counts when the arguments are wrong", () => {
+    const [violation] = checkExpression("x = :v AND size(a, b) > :v", "filter");
+
+    expect(violation).toMatchObject({
+      kind: "argument-count",
+      message: "size() takes 1 argument, not 2.",
+      token: "size",
+      offset: 11,
+    });
+    expect(checkExpression("begins_with(a)", "filter")[0]?.message).toBe(
+      "begins_with() takes 2 arguments, not 1.",
+    );
+  });
+
+  it("reports a call with no arguments as a syntax error, as DynamoDB does", () => {
+    expect(checkExpression("size() > :v", "filter")).toEqual([
+      expect.objectContaining({
+        kind: "syntax",
+        message: 'Syntax error at ")": size() takes 1 argument.',
+        token: ")",
+        offset: 5,
+      }),
+    ]);
+  });
+
+  it("counts the arguments of a call nested in another", () => {
+    expect(kinds("SET a = list_append(if_not_exists(l), :v)", "update")).toEqual([
+      "argument-count",
+    ]);
+  });
+
+  it("reports a syntax error in the arguments, not their number", () => {
+    expect(kinds("size(a,) > :v", "filter")).toEqual(["syntax"]);
+  });
+
+  it("leaves repeated paths to checkRequest, which knows the aliases", () => {
+    expect(kinds("a, a", "projection")).toEqual([]);
+  });
+
   it("treats a-b as subtraction on the right of SET, and as one name elsewhere", () => {
     expect(kinds("SET c = a-b", "update")).toEqual([]);
     expect(kinds("SET c = :v REMOVE my-attr-name", "update")).toEqual(["must-alias"]);
@@ -133,6 +172,60 @@ describe("checkRequest", () => {
     ]);
   });
 
+  it("finds repeated and overlapping paths in a projection, pointing at the later one", () => {
+    const repeated = checkRequest({
+      ProjectionExpression: "b, #a, a",
+      ExpressionAttributeNames: { "#a": "a" },
+    });
+    const overlapping = checkRequest({ ProjectionExpression: "a.b, a" });
+
+    expect(repeated).toEqual([
+      {
+        kind: "overlapping-paths",
+        field: "ProjectionExpression",
+        message: `"a" is projected twice; one projection can't list both. Remove one.`,
+        token: "a",
+        offset: 7,
+      },
+    ]);
+    expect(overlapping.map((v) => v.message)).toEqual([
+      `"a.b" and "a" overlap; one projection can't list both. Remove one.`,
+    ]);
+  });
+
+  it("doesn't report entries unused when a syntax error stopped the parse before them", () => {
+    const values = { ":v": 1, ":w": 2 };
+
+    for (const request of [
+      { FilterExpression: "a = ) AND b = :v AND c = :w" },
+      { FilterExpression: "a = :v AND b $ :w" },
+      { ConditionExpression: "a = :v", UpdateExpression: "SET b = ) , c = :w" },
+    ]) {
+      expect(
+        checkRequest({ ...request, ExpressionAttributeValues: values }).map((v) => v.kind),
+        JSON.stringify(request),
+      ).toEqual(["syntax"]);
+    }
+  });
+
+  it("still reports an undefined placeholder the parse reached before a syntax error", () => {
+    expect(checkRequest({ FilterExpression: "a = :v AND b = )" }).map((v) => v.kind)).toEqual([
+      "syntax",
+      "undefined-alias",
+    ]);
+  });
+
+  it("compares paths only within an expression, not across a request", () => {
+    expect(
+      checkRequest({
+        UpdateExpression: "SET a = :v",
+        ConditionExpression: "attribute_exists(a)",
+        ProjectionExpression: "a",
+        ExpressionAttributeValues: { ":v": 1 },
+      }),
+    ).toEqual([]);
+  });
+
   it("ignores fields that are not expressions, such as TableName and Key", () => {
     const request = {
       TableName: "t",
@@ -198,6 +291,15 @@ describe("checkPartialRequest", () => {
 
     expect(violations.map((v) => v.kind)).toEqual(["reserved-word"]);
     expect(unknown).toEqual(["UpdateExpression"]);
+  });
+
+  it("can't tell what an alias overlaps when the names map is unknown, except itself", () => {
+    const check = (ProjectionExpression: string) =>
+      checkPartialRequest({ ProjectionExpression, ExpressionAttributeNames: UNKNOWN }).violations;
+
+    expect(check("#a, a")).toEqual([]);
+    expect(check("#a, #b")).toEqual([]);
+    expect(check("#a, #a").map((v) => v.kind)).toEqual(["overlapping-paths"]);
   });
 
   it("doesn't report a map without an expression when one is unknown", () => {

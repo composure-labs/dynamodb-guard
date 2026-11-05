@@ -45,7 +45,9 @@ export type ViolationKind =
   | "names-without-expression"
   /** Valid syntax in the wrong kind of expression, such as `OR` in a key condition. */
   | "kind-grammar"
-  /** Two update actions on the same or overlapping document paths. */
+  /** A function called with the wrong number of arguments. */
+  | "argument-count"
+  /** Two update actions, or two projected paths, on the same or overlapping document paths. */
   | "overlapping-paths"
   /** Over one of DynamoDB's expression limits. */
   | "limit"
@@ -82,7 +84,8 @@ export const DOC_LINKS: Readonly<Record<ViolationKind, string>> = {
   "values-without-expression": `${DOCS}/Expressions.ExpressionAttributeValues.html`,
   "names-without-expression": `${DOCS}/Expressions.ExpressionAttributeNames.html`,
   "kind-grammar": `${DOCS}/Expressions.OperatorsAndFunctions.html`,
-  "overlapping-paths": `${DOCS}/Expressions.UpdateExpressions.html`,
+  "argument-count": `${DOCS}/Expressions.OperatorsAndFunctions.html`,
+  "overlapping-paths": `${DOCS}/Expressions.html`,
   limit: `${DOCS}/Constraints.html#limits-expression-parameters`,
   syntax: `${DOCS}/Expressions.html`,
 };

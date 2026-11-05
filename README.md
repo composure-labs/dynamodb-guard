@@ -65,11 +65,10 @@ assertRequest({
 | `undefined-alias` / `unused-alias`                       | a placeholder with no map entry, or a map entry no expression in the request uses                                                     |
 | `names-without-expression` / `values-without-expression` | either map on a request with no expression                                                                                            |
 | `kind-grammar`                                           | syntax valid elsewhere but not here: `OR` in a key condition, `if_not_exists()` in a condition                                        |
-| `overlapping-paths`                                      | two update actions on overlapping paths (`a` and `a.b`)                                                                               |
+| `argument-count`                                         | a function with the wrong number of arguments (`attribute_exists(a, b)`, `begins_with(a)`)                                            |
+| `overlapping-paths`                                      | two update actions, or two paths in a projection, that overlap (`a` and `a.b`)                                                        |
 | `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                 |
 | `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                    |
-
-Not yet checked: a function's number of arguments, and repeated paths in a projection.
 
 ## Step Functions, at synth (`/cdk`)
 

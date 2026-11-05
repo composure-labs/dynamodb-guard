@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-10-25",
+  "recordedAt": "2026-11-05",
   "region": "eu-west-2",
   "sdk": "@aws-sdk/client-dynamodb@3.1156.0",
   "cases": {
@@ -259,6 +259,195 @@
     },
     "filter-functions": {
       "hash": "d601a90caf8ac981",
+      "outcome": "accepted"
+    },
+    "arity-attribute-exists-none": {
+      "hash": "200f8ab4d88039a3",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-attribute-exists-two": {
+      "hash": "8517b377242f8d0b",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Incorrect number of operands for operator or function; operator or function: attribute_exists, number of operands: 2"
+    },
+    "arity-attribute-not-exists-none": {
+      "hash": "c0ceec832736dc5d",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-attribute-not-exists-two": {
+      "hash": "08e5114deeec3289",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Incorrect number of operands for operator or function; operator or function: attribute_not_exists, number of operands: 2"
+    },
+    "arity-attribute-type-none": {
+      "hash": "750abed510af0f5f",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-attribute-type-one": {
+      "hash": "1fe40e40f7022935",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Incorrect number of operands for operator or function; operator or function: attribute_type, number of operands: 1"
+    },
+    "arity-attribute-type-two": {
+      "hash": "72a84d82cf69a801",
+      "outcome": "accepted"
+    },
+    "arity-attribute-type-three": {
+      "hash": "cf64612ec5452286",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid ConditionExpression: Incorrect number of operands for operator or function; operator or function: attribute_type, number of operands: 3"
+    },
+    "arity-begins-with-none": {
+      "hash": "717a682ce744a2b5",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-begins-with-one": {
+      "hash": "3fcf3d40f4fb7a95",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Incorrect number of operands for operator or function; operator or function: begins_with, number of operands: 1"
+    },
+    "arity-begins-with-three": {
+      "hash": "5c8ed01b13fa3991",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Incorrect number of operands for operator or function; operator or function: begins_with, number of operands: 3"
+    },
+    "arity-contains-none": {
+      "hash": "2e6c97bf182474d8",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-contains-one": {
+      "hash": "d2d2a0c25a99d39c",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Incorrect number of operands for operator or function; operator or function: contains, number of operands: 1"
+    },
+    "arity-contains-three": {
+      "hash": "736ce0b79b570387",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Incorrect number of operands for operator or function; operator or function: contains, number of operands: 3"
+    },
+    "arity-size-none": {
+      "hash": "aa1cd6e961fe4cd7",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Syntax error; token: \")\", near: \"() >\""
+    },
+    "arity-size-two": {
+      "hash": "d167989ec614fbff",
+      "outcome": "rejected",
+      "message": "Invalid FilterExpression: Incorrect number of operands for operator or function; operator or function: size, number of operands: 2"
+    },
+    "arity-if-not-exists-none": {
+      "hash": "90b91751bc368d8e",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-if-not-exists-one": {
+      "hash": "3dc06be5623f498d",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Incorrect number of operands for operator or function; operator or function: if_not_exists, number of operands: 1"
+    },
+    "arity-if-not-exists-three": {
+      "hash": "a5a1c0ec1cc1f180",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Incorrect number of operands for operator or function; operator or function: if_not_exists, number of operands: 3"
+    },
+    "arity-list-append-none": {
+      "hash": "5409932e60115c21",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Syntax error; token: \")\", near: \"()\""
+    },
+    "arity-list-append-one": {
+      "hash": "3abb4768d27363f3",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Incorrect number of operands for operator or function; operator or function: list_append, number of operands: 1"
+    },
+    "arity-list-append-three": {
+      "hash": "97c6e8f03e14135e",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Invalid UpdateExpression: Incorrect number of operands for operator or function; operator or function: list_append, number of operands: 3"
+    },
+    "arity-key-condition-begins-with": {
+      "hash": "d5ea392ac7ed70aa",
+      "outcome": "rejected",
+      "message": "Invalid KeyConditionExpression: Incorrect number of operands for operator or function; operator or function: begins_with, number of operands: 1"
+    },
+    "projection-repeated": {
+      "hash": "4150637a955b079f",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "projection-repeated-nested": {
+      "hash": "b5e5f6ca0dd59ab8",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [n, m], path two: [n, m]"
+    },
+    "projection-repeated-index": {
+      "hash": "b54ece5931e7350f",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [l, [0]], path two: [l, [0]]"
+    },
+    "projection-overlap-child-second": {
+      "hash": "d4bb4014eea516c5",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [n], path two: [n, m]"
+    },
+    "projection-overlap-child-first": {
+      "hash": "85e358e807c17b6e",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [n, m], path two: [n]"
+    },
+    "projection-overlap-index": {
+      "hash": "857b738f3759465c",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [l], path two: [l, [0]]"
+    },
+    "projection-repeated-through-alias": {
+      "hash": "b5a9cd83b38efeac",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "projection-repeated-two-aliases": {
+      "hash": "c0fe705bf6c3f018",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "projection-repeated-same-alias": {
+      "hash": "5d2b5467c5fcdf1a",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "projection-overlap-through-alias": {
+      "hash": "8c27771a3a8962b3",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [n, m], path two: [n]"
+    },
+    "query-projection-repeated": {
+      "hash": "a6deab0e9a2a027e",
+      "outcome": "rejected",
+      "message": "Invalid ProjectionExpression: Two document paths overlap with each other; must remove or rewrite one of these paths; path one: [a], path two: [a]"
+    },
+    "projection-distinct-prefix": {
+      "hash": "d797d60d34c55bfd",
+      "outcome": "accepted"
+    },
+    "projection-distinct-case": {
+      "hash": "354f5c5c3af083ee",
+      "outcome": "accepted"
+    },
+    "projection-sibling-members": {
+      "hash": "40c9d74213c618bd",
+      "outcome": "accepted"
+    },
+    "projection-sibling-indexes": {
+      "hash": "bed0dbb34b4ec241",
+      "outcome": "accepted"
+    },
+    "projection-alias-holds-dot": {
+      "hash": "d28d8b5dde0118c5",
       "outcome": "accepted"
     },
     "update-clause-repeated": {
