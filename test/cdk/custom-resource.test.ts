@@ -316,4 +316,47 @@ describe("custom resources", () => {
       expect(synth(app)).toThrow(/"status" is a reserved word/);
     });
   });
+
+  // The canary for #9. The policy reads AwsCustomResource through the protected
+  // cfnProperties, so an aws-cdk-lib upgrade that moves its calls must fail here,
+  // naming what moved, rather than leave the other tests failing with "expected
+  // a throw". It checks only what CDK renders, never this package's own output.
+  it("relies on a shape aws-cdk-lib still renders", () => {
+    const broken = (what: string) =>
+      `aws-cdk-lib changed how AwsCustomResource renders its calls: ${what}. ` +
+      "src/cdk/custom-resource.ts reads them there, so without a fix the policy skips " +
+      "every custom resource silently. See #9.";
+    const { stack } = fixture();
+    const calls = {
+      Create: update("SET a = :v"),
+      Update: update("SET b = :v"),
+      Delete: update("SET c = :v"),
+    };
+    const custom = seed(stack, {
+      onCreate: calls.Create,
+      onUpdate: calls.Update,
+      onDelete: calls.Delete,
+    });
+    const resource = custom.node
+      .findAll()
+      .find(
+        (child): child is CfnResource =>
+          CfnResource.isCfnResource(child) && child.cfnResourceType === "Custom::AWS",
+      );
+    if (resource === undefined) throw new Error(broken("no Custom::AWS CfnResource"));
+    const { cfnProperties: properties } = resource as unknown as { cfnProperties: unknown };
+    if (typeof properties !== "object" || properties === null) {
+      throw new Error(broken("cfnProperties isn't an object"));
+    }
+
+    for (const [phase, call] of Object.entries(calls)) {
+      const text: unknown = stack.resolve((properties as Record<string, unknown>)[phase]);
+      expect(typeof text, broken(`${phase} isn't JSON text`)).toBe("string");
+      expect(JSON.parse(String(text)), broken(`${phase} no longer holds the call`)).toMatchObject({
+        service: call.service,
+        action: call.action,
+        parameters: call.parameters as object,
+      });
+    }
+  });
 });
