@@ -2,11 +2,12 @@ import { Annotations, Aspects, CfnResource } from "aws-cdk-lib";
 import type { IConstruct } from "constructs";
 import { UNKNOWN } from "../core/check.js";
 import { checkRequestsIn, type CheckedSite, formatSites } from "../core/requests.js";
+import { customResources } from "./custom-resource.js";
 import type { RequestSource } from "./source.js";
 import { stateMachines } from "./stepfunctions/state-machine.js";
 
 /** Each kind of resource the policy reads. */
-const SOURCES: readonly RequestSource[] = [stateMachines];
+const SOURCES: readonly RequestSource[] = [stateMachines, customResources];
 
 /**
  * The id `warn` mode annotates with. Pass it to
@@ -32,15 +33,15 @@ export interface DynamodbExpressionPolicyConfig {
   onViolation?: DynamodbExpressionViolationMode;
   /**
    * Add an info annotation to each resource listing what the policy couldn't
-   * check: values not known at synth, and definitions it can't read.
+   * check: values not known at synth, and definitions or calls it can't read.
    * @default false
    */
   reportUnchecked?: boolean;
 }
 
 /**
- * Fails synth when a Step Functions state machine sends DynamoDB a request it
- * would reject: a reserved word used as a name, a name that must be aliased, a
+ * Fails synth when a Step Functions state machine or an `AwsCustomResource`
+ * sends DynamoDB a request it would reject: a reserved word used as a name, a name that must be aliased, a
  * placeholder with no definition, a definition nothing uses, and every other
  * {@link https://github.com/composure-labs/dynamodb-guard#what-it-checks | check}
  * the checker makes.
@@ -48,8 +49,8 @@ export interface DynamodbExpressionPolicyConfig {
  * Installs a CDK Aspect that reads each `AWS::StepFunctions::StateMachine`
  * definition and checks every DynamoDB task in it, through either the
  * optimised integration or the SDK one, in JSONPath (`Parameters`) or JSONata
- * (`Arguments`). Call it once on any scope before synth; constructs added
- * afterwards are still covered.
+ * (`Arguments`), and each `AwsCustomResource` call to DynamoDB. Call it once on
+ * any scope before synth; constructs added afterwards are still covered.
  *
  * Values not known at synth (a `.$` key, a `{% %}` value, a CDK token) aren't
  * checked. Set `reportUnchecked` to list them. The README lists what the
