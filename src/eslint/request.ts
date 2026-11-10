@@ -1,0 +1,213 @@
+import type { AST, Rule, SourceCode } from "eslint";
+import type { Node, ObjectExpression, Property } from "estree";
+import { type PartialCheck, UNKNOWN } from "../core/check.js";
+import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
+import {
+  EXPRESSION_FIELDS,
+  type ExpressionField,
+  MAP_FIELDS,
+  type MapField,
+  type ViolationField,
+} from "../core/violations.js";
+
+const EXPRESSION_KEYS = Object.keys(EXPRESSION_FIELDS) as ExpressionField[];
+const MAP_KEYS = Object.keys(MAP_FIELDS) as MapField[];
+
+/** The fields as the SDK spells them, and as CDK's Step Functions tasks do. */
+const FIELDS = new Map<string, ViolationField>(
+  [...EXPRESSION_KEYS, ...MAP_KEYS].flatMap((field) => [
+    [field, field],
+    [field.charAt(0).toLowerCase() + field.slice(1), field],
+  ]),
+);
+
+const TABLE = new Set(["TableName", "tableName", "table"]);
+
+/**
+ * Keys that, beside an expression, say an object is a DynamoDB request.
+ * `ConditionExpression`, `FilterExpression` and `ProjectionExpression` exist in
+ * other AWS APIs, so they don't count on their own.
+ */
+const NAMES_DYNAMODB = new Set([
+  ...TABLE,
+  ...[...FIELDS.keys()].filter((key) => /^(update|keyCondition|expressionAttribute)/i.test(key)),
+]);
+
+const TRANSACT = new Set<string>(TRANSACT_OPERATIONS);
+
+/** A callee that takes a DynamoDB request: an SDK command, or a CDK `Dynamo*` task. */
+const DYNAMO_CALLEE = /Command$|^Dynamo/;
+
+const keyOf = (property: Property): string | undefined => {
+  if (property.computed) return undefined;
+  if (property.key.type === "Identifier") return property.key.name;
+  return property.key.type === "Literal" && typeof property.key.value === "string"
+    ? property.key.value
+    : undefined;
+};
+
+/** A string literal, or a template literal with nothing interpolated. */
+function staticString(node: Node): string | undefined {
+  if (node.type === "Literal") return typeof node.value === "string" ? node.value : undefined;
+  if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
+    return node.quasis[0]?.value.cooked ?? undefined;
+  }
+  return undefined;
+}
+
+/** A string assembled from parts: a template literal with interpolations, or `+`. */
+const isAssembled = (node: Node): boolean =>
+  (node.type === "TemplateLiteral" && node.expressions.length > 0) ||
+  (node.type === "BinaryExpression" && node.operator === "+");
+
+/**
+ * The operation this object is sent to, when its place says: the call or
+ * `new` it is an argument to, the transaction item key it sits under, or the
+ * `RequestItems` it is a table of. These are the places `findRequests` reads.
+ */
+function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
+  name?: string;
+  dynamo: boolean;
+} {
+  const parent = node.parent;
+  if (parent.type === "Property") {
+    if (parent.value !== node) return { dynamo: false };
+    const key = keyOf(parent);
+    if (key !== undefined && TRANSACT.has(key)) return { name: key, dynamo: true };
+    // A table's own key is often computed, so only the key above it is read.
+    const tables = parent.parent;
+    const above = tables.type === "ObjectExpression" ? tables.parent : undefined;
+    return above?.type === "Property" && above.value === tables && keyOf(above) === "RequestItems"
+      ? { name: "BatchGetItem", dynamo: true }
+      : { dynamo: false };
+  }
+  if (parent.type !== "CallExpression" && parent.type !== "NewExpression") return { dynamo: false };
+  const callee = parent.callee;
+  const name =
+    callee.type === "Identifier"
+      ? callee.name
+      : callee.type === "MemberExpression" && callee.property.type === "Identifier"
+        ? callee.property.name
+        : undefined;
+  return { name, dynamo: name !== undefined && DYNAMO_CALLEE.test(name) };
+}
+
+/** A literal map as the checker reads it: its keys, and each name's literal value. */
+function mapOf(node: Node, field: MapField): Record<string, unknown> | typeof UNKNOWN {
+  if (node.type !== "ObjectExpression") return UNKNOWN;
+  const entries: Record<string, unknown> = {};
+  for (const property of node.properties) {
+    if (property.type !== "Property") return UNKNOWN;
+    const key = keyOf(property);
+    if (key === undefined) return UNKNOWN;
+    entries[key] =
+      field === "ExpressionAttributeNames" ? (staticString(property.value) ?? UNKNOWN) : null;
+  }
+  return entries;
+}
+
+type ReportLocation = { node: Node } | { loc: AST.SourceLocation };
+
+/** A DynamoDB request written as an object literal, checked. */
+export interface LiteralRequest extends PartialCheck {
+  /** Each expression assembled with interpolation or `+`, whose text can't be known. */
+  readonly assembled: readonly { readonly field: ExpressionField; readonly node: Node }[];
+  /**
+   * Where to report `length` characters at `offset` in `field`'s value: that
+   * range, or the whole value when it can't be narrowed, or the whole object
+   * when the literal has no such field.
+   */
+  at(field: ViolationField, offset: number | undefined, length: number): ReportLocation;
+}
+
+/** Each object literal read so far, so the plugin's rules check a request once between them. */
+const read = new WeakMap<ObjectExpression, LiteralRequest | undefined>();
+
+/**
+ * Reads `node` as a DynamoDB request, when it is one, and checks it. Every
+ * rule in this plugin starts here, so they agree on what a request is.
+ */
+export function readRequest(
+  node: ObjectExpression & Rule.NodeParentExtension,
+  sourceCode: SourceCode,
+): LiteralRequest | undefined {
+  if (read.has(node)) return read.get(node);
+  const literal = readUncached(node, sourceCode);
+  read.set(node, literal);
+  return literal;
+}
+
+function readUncached(
+  node: ObjectExpression & Rule.NodeParentExtension,
+  sourceCode: SourceCode,
+): LiteralRequest | undefined {
+  // Every object literal in the codebase comes through here: find a request
+  // field before allocating anything.
+  let fields: Map<ViolationField, Property> | undefined;
+  let spread = false;
+  let expression = false;
+  let named = false;
+  let table = false;
+  for (const property of node.properties) {
+    if (property.type !== "Property") {
+      spread = true;
+      continue;
+    }
+    const key = keyOf(property);
+    if (key === undefined) continue;
+    named ||= NAMES_DYNAMODB.has(key);
+    table ||= TABLE.has(key);
+    const field = FIELDS.get(key);
+    if (field === undefined) continue;
+    (fields ??= new Map()).set(field, property);
+    expression ||= field in EXPRESSION_FIELDS;
+  }
+  if (fields === undefined) return undefined;
+  const operation = operationOf(node);
+  if (!operation.dynamo && !(expression ? named : table)) return undefined;
+
+  const request: Partial<Record<ViolationField, unknown>> = {};
+  const assembled: { field: ExpressionField; node: Node }[] = [];
+  for (const field of EXPRESSION_KEYS) {
+    const value = fields.get(field)?.value;
+    if (value === undefined) {
+      // A spread may hold any field.
+      if (spread) request[field] = UNKNOWN;
+      continue;
+    }
+    const text = staticString(value);
+    request[field] = text ?? UNKNOWN;
+    if (text === undefined && isAssembled(value)) assembled.push({ field, node: value });
+  }
+  for (const field of MAP_KEYS) {
+    const value = fields.get(field)?.value;
+    if (value !== undefined) request[field] = mapOf(value, field);
+    else if (spread) request[field] = UNKNOWN;
+  }
+  // The request holds no TransactItems or RequestItems, so it is the one site.
+  const [check] = checkRequestsIn(request, operation.name);
+  return {
+    ...check,
+    assembled,
+    at(field, offset, length) {
+      const value = fields.get(field)?.value;
+      if (value === undefined) return { node };
+      const text = staticString(value);
+      // Only an escape-free literal's text is its value plus the two quotes.
+      if (
+        offset === undefined ||
+        text === undefined ||
+        sourceCode.getText(value).length !== text.length + 2
+      ) {
+        return { node: value };
+      }
+      const from = (value.range?.[0] ?? 0) + 1 + offset;
+      return {
+        loc: {
+          start: sourceCode.getLocFromIndex(from),
+          end: sourceCode.getLocFromIndex(from + Math.max(1, length)),
+        },
+      };
+    },
+  };
+}

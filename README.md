@@ -213,7 +213,19 @@ Options:
 | `reportDynamic` | `true`  | Reports an expression assembled with `${}` or `+`, whose names can't be checked. The fix is one string, with each name that varies as a `#placeholder`. Turn it off to accept assembled expressions |
 | `aliasAll`      | `false` | Reports every attribute name not written as a `#placeholder`, reserved or not, so the bug can't be written at all. It needs no word list                                                            |
 
-The rule can't see a name that arrives through a variable. `/testing` checks those, using what the code actually sent. The rule's name, its messages and its default severity are public API: tightening any of them is a breaking change.
+The rule can't see a name that arrives through a variable. `/testing` checks those, using what the code actually sent.
+
+### `ambiguous-subtraction`
+
+`recommended` also turns on `dynamodb-guard/ambiguous-subtraction`, as a warning. On the right of `SET`, `a-b` is a subtraction, so `SET total = my-attr` is valid and DynamoDB reads it as `my - attr`. When the author meant one attribute named `my-attr`, the update silently writes the wrong value. DynamoDB doesn't reject it, so it isn't a violation and the other guards don't report it. The rule warns about a `-` with no space on either side, between two bare names:
+
+```
+4:34  warning  "my-attr" is read as my - attr, a subtraction. Write "my - attr" if that is meant, or alias the name: ExpressionAttributeNames { "#my_attr": "my-attr" }.  dynamodb-guard/ambiguous-subtraction
+```
+
+To turn it off, set `"dynamodb-guard/ambiguous-subtraction": "off"` after the preset. `aliasAll` makes it redundant, since that option already reports the bare names.
+
+Each rule's name, its messages and its default severity are public API: tightening any of them is a breaking change.
 
 ## Where this sits in the ecosystem
 
