@@ -27,6 +27,11 @@ export interface ParsedExpression {
   readonly paths: readonly DocumentPath[];
   /** Each name written without an alias that DynamoDB accepts so, with where it appears. */
   readonly bareNames: readonly Pick<Token, "text" | "offset">[];
+  /**
+   * Each `a-b` on the right of `SET`, written with no space around the `-`:
+   * DynamoDB reads it as a subtraction, but it looks like one name `a-b`.
+   */
+  readonly ambiguousSubtractions: readonly Pick<Token, "text" | "offset">[];
 }
 
 /** The `#placeholder` to suggest for `name`. */
@@ -81,6 +86,7 @@ class Parser {
   readonly values = new Map<string, number>();
   readonly paths: DocumentPath[] = [];
   readonly bareNames: Pick<Token, "text" | "offset">[] = [];
+  readonly ambiguousSubtractions: Pick<Token, "text" | "offset">[] = [];
   operators = 0;
   #tokens: readonly Token[] = [];
   #pos = 0;
@@ -168,6 +174,24 @@ class Parser {
     }
   }
 
+  /**
+   * The word after a `-` at the current position, when `word` ends at the
+   * `-` and the next word starts right after it: `a-b`, which looks like one
+   * name.
+   */
+  hyphenated(word: Token): Token | undefined {
+    const [hyphen, next] = [this.peek(), this.peek(1)];
+    const end = word.offset + word.text.length;
+    return word.type === "word" &&
+      hyphen.type === "punct" &&
+      hyphen.text === "-" &&
+      hyphen.offset === end &&
+      next.type === "word" &&
+      next.offset === end + 1
+      ? next
+      : undefined;
+  }
+
   parseSegment(arithmetic: boolean): string {
     const token = this.next();
     if (token.type === "name") {
@@ -179,14 +203,10 @@ class Parser {
     // Outside arithmetic, `my-attr` is one name that needed an alias, not a
     // subtraction, so report it whole rather than as a syntax error at `-`.
     if (!arithmetic) {
-      let end = token.offset + text.length;
-      while (this.atPunct("-") && this.peek().offset === end) {
-        const part = this.peek(1);
-        if (part.type !== "word" || part.offset !== end + 1) break;
+      for (let part = this.hyphenated(token); part !== undefined; part = this.hyphenated(part)) {
         this.next();
         this.next();
         text += `-${part.text}`;
-        end = part.offset + part.text.length;
       }
     }
     this.checkName({ text, offset: token.offset });
@@ -392,6 +412,14 @@ class Parser {
       this.expectPunct("=");
       this.parseOperand(true);
       if (this.atPunct("+") || this.atPunct("-")) {
+        const left = this.peek(-1);
+        const right = this.hyphenated(left);
+        if (right !== undefined) {
+          this.ambiguousSubtractions.push({
+            text: `${left.text}-${right.text}`,
+            offset: left.offset,
+          });
+        }
         this.next();
         this.operators++;
         this.parseOperand(true);
