@@ -4,8 +4,8 @@ import type { CfnResource } from "aws-cdk-lib";
 export interface Payload {
   /** Where it sits, as messages name it: `state "Complete" (dynamodb:updateItem) Parameters`. */
   readonly label: string;
-  /** The DynamoDB operation, such as `updateItem`. */
-  readonly operation: string;
+  /** The DynamoDB operation, such as `updateItem`, unless the payload can't be read at all. */
+  readonly operation?: string;
   /** The payload, with `UNKNOWN` for each value not known at synth, or for the whole of it. */
   readonly value: unknown;
 }

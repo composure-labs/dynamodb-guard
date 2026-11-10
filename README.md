@@ -29,11 +29,11 @@ Nothing catches this before the first real call. `cdk synth` accepts it, and uni
 
 Every guard here runs **before deploy**: in the editor, in lint, in unit tests or at synth. Nothing in this package runs in production. Once a request reaches DynamoDB, DynamoDB reports the mistake itself. A guard's job is to move that report to before deploy.
 
-| Where the expression is written                | Guard      | Fails at             |
-| ---------------------------------------------- | ---------- | -------------------- |
-| Step Functions definitions                     | `/cdk`     | `cdk synth` (CI)     |
-| Handler code, including names built at runtime | `/testing` | Unit tests (CI)      |
-| A literal in any code                          | `/eslint`  | The editor, and lint |
+| Where the expression is written                  | Guard      | Fails at             |
+| ------------------------------------------------ | ---------- | -------------------- |
+| Step Functions definitions, `AwsCustomResource`s | `/cdk`     | `cdk synth` (CI)     |
+| Handler code, including names built at runtime   | `/testing` | Unit tests (CI)      |
+| A literal in any code                            | `/eslint`  | The editor, and lint |
 
 The root entry point is the checker all three build on. It has no dependencies. `/testing` has none either, so neither needs CDK or ESLint installed. The `/cdk` and `/eslint` entry points need their optional peers.
 
@@ -70,7 +70,7 @@ assertRequest({
 | `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                 |
 | `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                    |
 
-## Step Functions, at synth (`/cdk`)
+## Step Functions and custom resources, at synth (`/cdk`)
 
 ```ts
 import { dynamodbExpressionPolicy } from "@composure-labs/dynamodb-guard/cdk";
@@ -91,23 +91,36 @@ state "Complete" (dynamodb:updateItem) Parameters:
     See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
 ```
 
+It also checks each `AwsCustomResource` call to DynamoDB, whichever `service` form it names (`DynamoDB`, `dynamodb`, `@aws-sdk/client-dynamodb`), and whatever its `resourceType`. A call that CDK uses for both create and update is reported once, as `Update`:
+
+```
+Error: Stack/Seed/Resource/Default: DynamoDB would reject a request this custom resource sends.
+Update (dynamodb:updateItem) parameters:
+  UpdateExpression: "metrics" is a reserved word; alias it: ExpressionAttributeNames { "#metrics": "metrics" }.
+    SET metrics = :m
+        ^^^^^^^
+    See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
+```
+
 `onViolation` chooses what happens:
 
-- **`throw`** (the default) fails synth, listing every violation in the state machine. It throws, not `Annotations.addError`, because only the CDK CLI acts on an error annotation: `app.synth()` and `Template.fromStack()` in a unit test would carry on.
-- **`warn`** adds a warning to each state machine instead, with the id `DYNAMODB_EXPRESSION_WARNING`, which `Annotations.of(scope).acknowledgeWarning(...)` accepts. To adopt the policy on an existing estate, run `warn`, fix the list, then switch to `throw`.
+- **`throw`** (the default) fails synth, listing every violation in the resource. It throws, not `Annotations.addError`, because only the CDK CLI acts on an error annotation: `app.synth()` and `Template.fromStack()` in a unit test would carry on.
+- **`warn`** adds a warning to each resource instead, with the id `DYNAMODB_EXPRESSION_WARNING`, which `Annotations.of(scope).acknowledgeWarning(...)` accepts. To adopt the policy on an existing estate, run `warn`, fix the list, then switch to `throw`.
 
-`reportUnchecked: true` adds an info annotation to each state machine, listing what the policy couldn't check (see below). It is off by default, because in a large app every dynamic field adds a line to `cdk synth`.
+`reportUnchecked: true` adds an info annotation to each resource, listing what the policy couldn't check (see below). It is off by default, because in a large app every dynamic field adds a line to `cdk synth`.
 
 On `aws-cdk-lib` releases that have `AspectPriority`, the policy runs after any Aspect that changes a definition. Older releases run Aspects in the order they were added, so call the policy last.
 
 ### What it can't see
 
-A value whose text isn't known at synth is skipped, never guessed at. With `reportUnchecked`, each state machine lists what it skipped, and any definition it couldn't read, in an info annotation:
+A value whose text isn't known at synth is skipped, never guessed at. With `reportUnchecked`, each resource lists what it skipped, and any definition or call it couldn't read, in an info annotation:
 
 - a JSONPath `.$` field (`"UpdateExpression.$": "States.Format(...)"`), a JSONata `{% %}` value, a CDK token, and a `DefinitionSubstitutions` placeholder. When an expression is skipped, the request's unused entries aren't reported, because the skipped expression may use them. When a map is skipped, undefined placeholders aren't reported, because the map may define them;
 - a definition in S3 (`definitionS3Location`), or one that is a CloudFormation intrinsic other than `Fn::Join`;
-- a definition changed with `addPropertyOverride`, which the policy doesn't read;
-- expressions in Lambda code (use `/testing`), `AwsCustomResource` calls, AppSync resolvers and PartiQL statements.
+- a custom resource call's `PhysicalResourceIdReference`, which only has a value at deploy;
+- a definition or a custom resource call changed with `addPropertyOverride`, which the policy doesn't read;
+- a custom resource whose `service` isn't literal text, because nothing at synth says it calls DynamoDB, and one whose calls are all intrinsics, for the same reason;
+- expressions in Lambda code (use `/testing`), AppSync resolvers and PartiQL statements.
 
 ## Handler code, in unit tests (`/testing`)
 
