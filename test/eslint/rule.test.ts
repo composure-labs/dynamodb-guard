@@ -148,14 +148,20 @@ describe("plugin", () => {
 
   it("runs from the recommended preset in a flat config", () => {
     const messages = new Linter().verify(
-      `send({ TableName: "t", UpdateExpression: "SET name = :v", ExpressionAttributeValues: { ":v": 1 } });`,
+      `send({ TableName: "t", UpdateExpression: "SET name = gross-net" });`,
       [configs.recommended],
     );
 
-    expect(messages.map((m) => [m.ruleId, m.message])).toEqual([
+    expect(messages.map((m) => [m.ruleId, m.severity, m.message])).toEqual([
       [
         "dynamodb-guard/valid-expressions",
+        2,
         expect.stringMatching(/^"name" is a reserved word/) as string,
+      ],
+      [
+        "dynamodb-guard/ambiguous-subtraction",
+        1,
+        expect.stringMatching(/^"gross-net" is read as gross - net/) as string,
       ],
     ]);
   });
