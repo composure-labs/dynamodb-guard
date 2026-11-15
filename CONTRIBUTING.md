@@ -6,7 +6,7 @@ The design and the plan for this package live in [laazyj/composureCDK#627](https
 
 ## Development setup
 
-Prerequisites: **Node.js >= 22** for development (consumers need only Node >= 20), and **shellcheck** on your `PATH` if you change `.github/workflows/` (`brew install shellcheck`).
+Prerequisites: **Node.js >= 22** for development (consumers need it too), and **shellcheck** on your `PATH` if you change `.github/workflows/` (`brew install shellcheck`).
 
 ```sh
 git clone https://github.com/composure-labs/dynamodb-guard.git
