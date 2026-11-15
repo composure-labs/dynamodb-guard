@@ -12,9 +12,12 @@ on:
 
 jobs:
   claude-review:
-    # Only review PRs from owners, maintainers and regular contributors.
+    # Only review PRs from owners, maintainers and regular contributors, and
+    # not runs a bot triggered (Dependabot counts as a contributor; the action
+    # refuses bot actors).
     if: |
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), github.event.pull_request.author_association)
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"]'), github.event.pull_request.author_association) &&
+      github.event.sender.type != 'Bot'
 
     runs-on: ubuntu-latest
     permissions:
