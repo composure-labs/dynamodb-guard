@@ -13,6 +13,12 @@ export const MAP_FIELDS = {
   ExpressionAttributeValues: ":",
 } as const;
 
+/** The request fields that choose what a write returns. */
+export const RETURN_VALUE_FIELDS = ["ReturnValues", "ReturnValuesOnConditionCheckFailure"] as const;
+
+/** A request field that chooses what a write returns. */
+export type ReturnValueField = (typeof RETURN_VALUE_FIELDS)[number];
+
 /** A request field that holds placeholders' definitions. */
 export type MapField = keyof typeof MAP_FIELDS;
 
@@ -22,8 +28,8 @@ export type ExpressionField = keyof typeof EXPRESSION_FIELDS;
 /** The grammar an expression is written in. */
 export type ExpressionKind = (typeof EXPRESSION_FIELDS)[ExpressionField];
 
-/** Where a violation was found: an expression, or one of the attribute maps. */
-export type ViolationField = ExpressionField | MapField;
+/** Where a violation was found: an expression, one of the attribute maps, or a return-values field. */
+export type ViolationField = ExpressionField | MapField | ReturnValueField;
 
 /**
  * What is wrong. Each kind is one way DynamoDB rejects a request with a
@@ -52,7 +58,9 @@ export type ViolationKind =
   /** Over one of DynamoDB's expression limits. */
   | "limit"
   /** Not an expression DynamoDB can parse. */
-  | "syntax";
+  | "syntax"
+  /** A `ReturnValues` or `ReturnValuesOnConditionCheckFailure` the operation doesn't take. */
+  | "return-values";
 
 /** One reason DynamoDB would reject the request. */
 export interface Violation {
@@ -88,4 +96,5 @@ export const DOC_LINKS: Readonly<Record<ViolationKind, string>> = {
   "overlapping-paths": `${DOCS}/Expressions.html`,
   limit: `${DOCS}/Constraints.html#limits-expression-parameters`,
   syntax: `${DOCS}/Expressions.html`,
+  "return-values": `${DOCS}/WorkingWithItems.html#WorkingWithItems.ReturnValues`,
 };

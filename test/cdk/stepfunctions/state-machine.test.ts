@@ -7,6 +7,7 @@ import {
   DynamoDeleteItem,
   DynamoGetItem,
   DynamoProjectionExpression,
+  DynamoReturnValues,
   DynamoUpdateItem,
 } from "aws-cdk-lib/aws-stepfunctions-tasks";
 import { describe, expect, it } from "vitest";
@@ -272,6 +273,23 @@ describe("state machines", () => {
     dynamodbExpressionPolicy(app);
 
     expect(synth(app)).not.toThrow();
+  });
+
+  it("checks a task's ReturnValues against its operation", () => {
+    const { app, stack, table, key } = fixture();
+    machine(
+      stack,
+      new DynamoDeleteItem(stack, "Delete", {
+        table,
+        key,
+        returnValues: DynamoReturnValues.UPDATED_NEW,
+      }),
+    );
+    dynamodbExpressionPolicy(app);
+
+    expect(synth(app)).toThrow(
+      /state "Delete" \(dynamodb:deleteItem\) Parameters:\n {2}ReturnValues: DeleteItem takes ReturnValues NONE or ALL_OLD, not "UPDATED_NEW"\./,
+    );
   });
 
   it("ignores tasks that don't call DynamoDB", () => {

@@ -7,6 +7,7 @@ import {
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  PutCommand,
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -121,6 +122,17 @@ describe("assertValidDynamoRequests", () => {
     await new DynamoDBClient({}).send(new GetItemCommand(input));
 
     expect(rejectedDynamoRequests(ddb)).toEqual([]);
+  });
+
+  it("checks ReturnValues against the command's operation", async () => {
+    const ddb = stub(DynamoDBDocumentClient);
+    await documentClient().send(
+      new PutCommand({ TableName: "t", Item: { id: "1" }, ReturnValues: "ALL_NEW" }),
+    );
+
+    expect(rejectedDynamoRequests(ddb)).toMatchObject([
+      { call: 0, command: "PutCommand", violations: [{ kind: "return-values" }] },
+    ]);
   });
 
   it("reads a spy on send, and an array of commands or inputs", async () => {

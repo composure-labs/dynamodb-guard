@@ -238,6 +238,78 @@ describe("checkRequest", () => {
   });
 });
 
+describe("checkRequest with an operation", () => {
+  it("reports a ReturnValues the operation doesn't take, naming what it does", () => {
+    expect(checkRequest({ ReturnValues: "ALL_NEW" }, "PutItem")).toEqual([
+      {
+        kind: "return-values",
+        field: "ReturnValues",
+        message: 'PutItem takes ReturnValues NONE or ALL_OLD, not "ALL_NEW".',
+        token: "ALL_NEW",
+      },
+    ]);
+  });
+
+  it("accepts every ReturnValues on UpdateItem, and only those", () => {
+    for (const value of ["NONE", "ALL_OLD", "UPDATED_OLD", "ALL_NEW", "UPDATED_NEW"]) {
+      expect(checkRequest({ ReturnValues: value }, "UpdateItem"), value).toEqual([]);
+    }
+    expect(checkRequest({ ReturnValues: "all_new" }, "UpdateItem")[0]?.message).toBe(
+      'UpdateItem takes ReturnValues NONE, ALL_OLD, UPDATED_OLD, ALL_NEW or UPDATED_NEW, not "all_new".',
+    );
+  });
+
+  it("checks ReturnValuesOnConditionCheckFailure on each single write", () => {
+    for (const operation of ["UpdateItem", "PutItem", "DeleteItem"]) {
+      const request = { ReturnValuesOnConditionCheckFailure: "ALL_NEW" };
+
+      expect(
+        checkRequest(request, operation).map((v) => v.field),
+        operation,
+      ).toEqual(["ReturnValuesOnConditionCheckFailure"]);
+      expect(checkRequest({ ReturnValuesOnConditionCheckFailure: "ALL_OLD" }, operation)).toEqual(
+        [],
+      );
+    }
+  });
+
+  it("knows the operation however a guard spells it", () => {
+    const spellings = [
+      "DeleteItem",
+      "deleteItem",
+      "DeleteItemCommand",
+      "DeleteCommand",
+      "DynamoDeleteItem",
+      "delete",
+    ];
+    for (const operation of spellings) {
+      expect(checkRequest({ ReturnValues: "UPDATED_NEW" }, operation), operation).toHaveLength(1);
+    }
+  });
+
+  it("doesn't judge return values without a write operation it knows", () => {
+    const request = { ReturnValues: "BOGUS", ReturnValuesOnConditionCheckFailure: "BOGUS" };
+
+    for (const operation of [undefined, "Query", "GetItem", "constructor", "UpdateTable"]) {
+      expect(checkRequest(request, operation), operation).toEqual([]);
+    }
+  });
+
+  it("formats a return-values violation without a caret", () => {
+    const request = { ReturnValues: "ALL_NEW" };
+
+    expect(() => {
+      assertRequest(request, "PutCommand");
+    }).toThrow(
+      [
+        "DynamoDB would reject this request:",
+        'ReturnValues: PutItem takes ReturnValues NONE or ALL_OLD, not "ALL_NEW".',
+        "  See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html#WorkingWithItems.ReturnValues",
+      ].join("\n"),
+    );
+  });
+});
+
 describe("assertRequest", () => {
   it("passes a request DynamoDB accepts", () => {
     expect(() => {

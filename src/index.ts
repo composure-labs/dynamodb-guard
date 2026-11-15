@@ -13,6 +13,7 @@ export {
 export type {
   ExpressionField,
   ExpressionKind,
+  ReturnValueField,
   Violation,
   ViolationField,
   ViolationKind,

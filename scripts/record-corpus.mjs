@@ -27,6 +27,7 @@ import {
   waitUntilTableNotExists,
 } from "@aws-sdk/client-dynamodb";
 import {
+  DeleteCommand,
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
@@ -59,6 +60,7 @@ const sdkVersion = createRequire(import.meta.url)("@aws-sdk/client-dynamodb/pack
 const COMMANDS = {
   UpdateItem: UpdateCommand,
   PutItem: PutCommand,
+  DeleteItem: DeleteCommand,
   GetItem: GetCommand,
   Query: QueryCommand,
   Scan: ScanCommand,
