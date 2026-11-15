@@ -5,6 +5,8 @@ import {
   isRecord,
   type PartialCheck,
 } from "./check.js";
+import { canonicalOperation, transactionItemOperation } from "./operations.js";
+import { returnValueRules } from "./return-values.js";
 import type { Violation } from "./violations.js";
 
 /** One request found by {@link findRequests}, and where it sits in the value searched. */
@@ -12,6 +14,12 @@ export interface RequestSite {
   /** Where the request was found, such as `TransactItems[1].Update`; `""` for the value itself. */
   readonly path: string;
   readonly request: DynamoRequest;
+  /**
+   * The operation the request is sent as, when known: as the guard named it
+   * for the value itself, `TransactItems.Update` for a transaction item, and
+   * `BatchGetItem` for a table of one.
+   */
+  readonly operation: string | undefined;
 }
 
 /** The operations a `TransactWriteItems` or `TransactGetItems` item can hold. */
@@ -21,10 +29,9 @@ export const TRANSACT_OPERATIONS = ["Update", "ConditionCheck", "Put", "Delete",
  * Operations that take no `ExpressionAttributeValues`. The SDK drops the field
  * from these silently, so DynamoDB never sees it and never rejects it.
  */
-const WITHOUT_VALUES = new Set(["get", "getitem", "batchget", "batchgetitem"]);
-
-/** `GetItem`, `getItem`, `GetItemCommand` and `GetCommand` all name the same operation. */
-const normalize = (operation: string): string => operation.replace(/Command$/, "").toLowerCase();
+const WITHOUT_VALUES = new Set(
+  ["GetItem", "BatchGetItem", transactionItemOperation("Get")].map(canonicalOperation),
+);
 
 const withoutValues = (request: Record<string, unknown>): DynamoRequest =>
   "ExpressionAttributeValues" in request
@@ -32,6 +39,20 @@ const withoutValues = (request: Record<string, unknown>): DynamoRequest =>
         Object.entries(request).filter(([key]) => key !== "ExpressionAttributeValues"),
       )
     : request;
+
+/** A site, with the request as the SDK sends it to `operation`. */
+const siteOf = (
+  path: string,
+  request: Record<string, unknown>,
+  operation: string | undefined,
+): RequestSite => ({
+  path,
+  request:
+    operation !== undefined && WITHOUT_VALUES.has(canonicalOperation(operation))
+      ? withoutValues(request)
+      : request,
+  operation,
+});
 
 /**
  * Finds the DynamoDB requests in a value by their shape, not by command class:
@@ -45,8 +66,7 @@ const withoutValues = (request: Record<string, unknown>): DynamoRequest =>
  */
 export function findRequests(value: unknown, operation?: string): RequestSite[] {
   if (!isRecord(value)) return [];
-  const top = operation !== undefined && WITHOUT_VALUES.has(normalize(operation));
-  const sites: RequestSite[] = [{ path: "", request: top ? withoutValues(value) : value }];
+  const sites = [siteOf("", value, operation)];
   const { TransactItems: items, RequestItems: tables } = value;
   if (Array.isArray(items)) {
     items.forEach((item: unknown, i) => {
@@ -54,10 +74,9 @@ export function findRequests(value: unknown, operation?: string): RequestSite[] 
       for (const op of TRANSACT_OPERATIONS) {
         const request = item[op];
         if (!isRecord(request)) continue;
-        sites.push({
-          path: `TransactItems[${String(i)}].${op}`,
-          request: op === "Get" ? withoutValues(request) : request,
-        });
+        sites.push(
+          siteOf(`TransactItems[${String(i)}].${op}`, request, transactionItemOperation(op)),
+        );
       }
     });
   }
@@ -66,10 +85,7 @@ export function findRequests(value: unknown, operation?: string): RequestSite[] 
   if (isRecord(tables)) {
     for (const [table, request] of Object.entries(tables)) {
       if (isRecord(request)) {
-        sites.push({
-          path: `RequestItems[${JSON.stringify(table)}]`,
-          request: withoutValues(request),
-        });
+        sites.push(siteOf(`RequestItems[${JSON.stringify(table)}]`, request, "BatchGetItem"));
       }
     }
   }
@@ -84,7 +100,10 @@ export interface CheckedSite extends RequestSite, PartialCheck {}
  * the loop every guard runs over the value it was given.
  */
 export const checkRequestsIn = (value: unknown, operation?: string): CheckedSite[] =>
-  findRequests(value, operation).map((site) => ({ ...site, ...checkPartialRequest(site.request) }));
+  findRequests(value, operation).map((site) => ({
+    ...site,
+    ...checkPartialRequest(site.request, returnValueRules(site.operation)),
+  }));
 
 /**
  * One block per site that has violations: its label, then its violations

@@ -56,19 +56,20 @@ assertRequest({
 //   See https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
 ```
 
-`checkRequest` returns the violations instead of throwing. It reads only the expression fields and the two attribute maps, so an SDK command's input can be passed as it is. It reports:
+`checkRequest` returns the violations instead of throwing. It reads only the expression fields, the two attribute maps and the two return-values fields, so an SDK command's input can be passed as it is. Both functions take the operation as an optional second argument, in any spelling (`"PutItem"`, `"PutCommand"`, `"putItem"`). Without it, the return-values fields aren't checked, because what they accept depends on the operation. It reports:
 
-| Kind                                                     | DynamoDB rejects                                                                                                                      |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `reserved-word`                                          | an unaliased [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html), in any letter case |
-| `must-alias`                                             | an unaliased name that isn't an ASCII letter followed by letters, digits or `_` (`1abc`, `my-attr`, `_u`, `café`)                     |
-| `undefined-alias` / `unused-alias`                       | a placeholder with no map entry, or a map entry no expression in the request uses                                                     |
-| `names-without-expression` / `values-without-expression` | either map on a request with no expression                                                                                            |
-| `kind-grammar`                                           | syntax valid elsewhere but not here: `OR` in a key condition, `if_not_exists()` in a condition                                        |
-| `argument-count`                                         | a function with the wrong number of arguments (`attribute_exists(a, b)`, `begins_with(a)`)                                            |
-| `overlapping-paths`                                      | two update actions, or two paths in a projection, that overlap (`a` and `a.b`)                                                        |
-| `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                 |
-| `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                    |
+| Kind                                                     | DynamoDB rejects                                                                                                                                                |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reserved-word`                                          | an unaliased [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html), in any letter case                           |
+| `must-alias`                                             | an unaliased name that isn't an ASCII letter followed by letters, digits or `_` (`1abc`, `my-attr`, `_u`, `café`)                                               |
+| `undefined-alias` / `unused-alias`                       | a placeholder with no map entry, or a map entry no expression in the request uses                                                                               |
+| `names-without-expression` / `values-without-expression` | either map on a request with no expression                                                                                                                      |
+| `kind-grammar`                                           | syntax valid elsewhere but not here: `OR` in a key condition, `if_not_exists()` in a condition                                                                  |
+| `argument-count`                                         | a function with the wrong number of arguments (`attribute_exists(a, b)`, `begins_with(a)`)                                                                      |
+| `overlapping-paths`                                      | two update actions, or two paths in a projection, that overlap (`a` and `a.b`)                                                                                  |
+| `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                                           |
+| `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                                              |
+| `return-values`                                          | a `ReturnValues` the operation doesn't take (`ALL_NEW` on `PutItem` or `DeleteItem`), or a `ReturnValuesOnConditionCheckFailure` other than `NONE` or `ALL_OLD` |
 
 ## Step Functions and custom resources, at synth (`/cdk`)
 
@@ -205,6 +206,7 @@ How it treats each kind of value:
 - **Expressions and maps written as literals** are checked together, as a request.
 - **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
 - **`ExpressionAttributeValues` on a `GetItem` or a `BatchGetItem` table** is ignored, because the SDK drops it.
+- **`ReturnValues`** is checked when the rule knows the operation: from the command or CDK task it's passed to (`new PutCommand(…)`, `DynamoPutItem`), a v2 Document client method (`docClient.put(…)`), or the transaction item it sits in. A string literal or an enum member (`ReturnValue.ALL_NEW`, `DynamoReturnValues.ALL_NEW`) is read. Parameters built away from the call aren't, because nothing there says the operation.
 
 Options:
 

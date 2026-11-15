@@ -8,6 +8,12 @@ import {
   type MapField,
   type Violation,
 } from "./violations.js";
+import {
+  type ReturnValueRules,
+  returnValueRules,
+  returnValueViolations,
+  UNCHECKED,
+} from "./return-values.js";
 
 /** The most bytes DynamoDB accepts in one `#name` or `:value` placeholder. */
 export const MAX_PLACEHOLDER_BYTES = 255;
@@ -15,7 +21,8 @@ export const MAX_PLACEHOLDER_BYTES = 255;
 /**
  * The parts of a DynamoDB request the checker reads. Any other field, such as
  * `TableName`, `Key` or `Item`, is ignored, so an SDK command's input can be
- * passed as it is.
+ * passed as it is. The return-values fields are checked only when the
+ * operation is known.
  */
 export interface DynamoRequest {
   readonly UpdateExpression?: string;
@@ -25,6 +32,8 @@ export interface DynamoRequest {
   readonly ProjectionExpression?: string;
   readonly ExpressionAttributeNames?: Readonly<Record<string, string>>;
   readonly ExpressionAttributeValues?: Readonly<Record<string, unknown>>;
+  readonly ReturnValues?: string;
+  readonly ReturnValuesOnConditionCheckFailure?: string;
 }
 
 /**
@@ -162,8 +171,13 @@ function mapViolations(
  * Each rule judges only what it can: an unknown expression may use any
  * placeholder, so no entry is reported unused; an unknown map may define any,
  * so none of its placeholders is reported undefined.
+ *
+ * @param returns - What the request's operation may return; by default, nothing is checked.
  */
-export function checkPartialRequest(request: object): PartialCheck {
+export function checkPartialRequest(
+  request: object,
+  returns: ReturnValueRules = UNCHECKED,
+): PartialCheck {
   const fields = request as Readonly<Record<string, unknown>>;
   const unknown: PartialCheck["unknown"] = [];
   const maps: Partial<Record<MapField, Readonly<Record<string, unknown>> | typeof UNKNOWN>> = {};
@@ -227,6 +241,7 @@ export function checkPartialRequest(request: object): PartialCheck {
       violations.push(...mapViolations(field, map, used[field], expressions));
     }
   }
+  violations.push(...returnValueViolations(fields, returns));
   return { violations, unknown, bareNames };
 }
 
@@ -235,9 +250,14 @@ export function checkPartialRequest(request: object): PartialCheck {
  * `ExpressionAttributeNames` and `ExpressionAttributeValues`, which are shared
  * by all of them. Returns every violation found; an empty array means
  * DynamoDB should accept the expressions.
+ *
+ * @param operation - The operation the request is sent to, such as `PutItem`
+ *   or `PutCommand`. With it, `ReturnValues` and
+ *   `ReturnValuesOnConditionCheckFailure` are checked against what that
+ *   operation takes; without it, they aren't checked.
  */
-export function checkRequest(request: DynamoRequest): Violation[] {
-  return checkPartialRequest(request).violations;
+export function checkRequest(request: DynamoRequest, operation?: string): Violation[] {
+  return checkPartialRequest(request, returnValueRules(operation)).violations;
 }
 
 /** Each violation on its own lines: the message, a caret under the token, and the AWS doc. */
@@ -275,7 +295,7 @@ export class DynamoExpressionError extends Error {
 }
 
 /** {@link checkRequest}, throwing a {@link DynamoExpressionError} listing every violation. */
-export function assertRequest(request: DynamoRequest): void {
-  const violations = checkRequest(request);
+export function assertRequest(request: DynamoRequest, operation?: string): void {
+  const violations = checkRequest(request, operation);
   if (violations.length > 0) throw new DynamoExpressionError(violations, request);
 }

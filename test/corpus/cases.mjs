@@ -40,7 +40,7 @@ export const SEED = {
   café: 1,
 };
 
-/** @typedef {"UpdateItem" | "PutItem" | "GetItem" | "Query" | "Scan"} Operation */
+/** @typedef {"UpdateItem" | "PutItem" | "DeleteItem" | "GetItem" | "Query" | "Scan"} Operation */
 /** @typedef {import("../../src/core/violations.js").ViolationKind | null} Fault */
 /** @typedef {{ id: string, fault: Fault, op: Operation, input: Record<string, unknown> }} Case */
 
@@ -54,6 +54,7 @@ export const SEED = {
 export function request({ op, input }) {
   switch (op) {
     case "UpdateItem":
+    case "DeleteItem":
     case "GetItem":
       return { Key: KEY, ...input };
     case "PutItem":
@@ -101,6 +102,28 @@ const condition = builder("PutItem", "ConditionExpression");
 const filter = builder("Scan", "FilterExpression");
 const projection = builder("GetItem", "ProjectionExpression");
 const keyCondition = builder("Query", "KeyConditionExpression");
+
+// Written out, not imported from the checker: the corpus specifies it.
+const RETURN_VALUES = ["NONE", "ALL_OLD", "UPDATED_OLD", "ALL_NEW", "UPDATED_NEW"];
+const ON_FAILURE = ["NONE", "ALL_OLD", "ALL_NEW", "UPDATED_OLD"];
+
+/**
+ * A write with no expression, asking for `value` in `field`: one case per
+ * value, each a fault unless `accepted` lists it.
+ *
+ * @param {"UpdateItem" | "PutItem" | "DeleteItem"} op
+ * @param {"ReturnValues" | "ReturnValuesOnConditionCheckFailure"} field
+ * @param {readonly string[]} values
+ * @param {readonly string[]} accepted
+ * @returns {Case[]}
+ */
+const returnValueCases = (op, field, values, accepted) =>
+  values.map((value) => ({
+    id: `${op}-${field}-${value}`.toLowerCase().replaceAll("_", "-"),
+    fault: accepted.includes(value) ? null : "return-values",
+    op,
+    input: { [field]: value },
+  }));
 
 const V = { ":v": 1 };
 const P = { ":p": "p" };
@@ -422,6 +445,38 @@ export const CASES = [
   inCase("filter-in-101-operands", "limit", 101),
   placeholderCase("update-name-placeholder-255", null, 255),
   placeholderCase("update-name-placeholder-256", "limit", 256),
+
+  // What a write may return, which depends on the operation, not on any
+  // expression. Values outside the enum, and in the wrong case, too.
+  ...returnValueCases("UpdateItem", "ReturnValues", [...RETURN_VALUES, "ALL"], RETURN_VALUES),
+  {
+    id: "updateitem-returnvalues-lower-case",
+    fault: "return-values",
+    op: "UpdateItem",
+    input: { ReturnValues: "all_new" },
+  },
+  ...returnValueCases("PutItem", "ReturnValues", RETURN_VALUES, ["NONE", "ALL_OLD"]),
+  ...returnValueCases("DeleteItem", "ReturnValues", RETURN_VALUES, ["NONE", "ALL_OLD"]),
+  ...returnValueCases("UpdateItem", "ReturnValuesOnConditionCheckFailure", ON_FAILURE, [
+    "NONE",
+    "ALL_OLD",
+  ]),
+  ...returnValueCases("PutItem", "ReturnValuesOnConditionCheckFailure", ON_FAILURE, [
+    "NONE",
+    "ALL_OLD",
+  ]),
+  ...returnValueCases("DeleteItem", "ReturnValuesOnConditionCheckFailure", ON_FAILURE, [
+    "NONE",
+    "ALL_OLD",
+  ]),
+  update("update-return-values-with-expression", null, "SET a = :v", {
+    ExpressionAttributeValues: V,
+    ReturnValues: "UPDATED_NEW",
+  }),
+  condition("put-return-values-with-condition", "return-values", "attribute_exists(a)", {
+    ReturnValues: "ALL_NEW",
+    ReturnValuesOnConditionCheckFailure: "ALL_OLD",
+  }),
 ];
 
 const ids = CASES.map(({ id }) => id);

@@ -70,6 +70,22 @@ ruleTester.run("valid-expressions", rule, {
       name: "a template literal with nothing interpolated",
       code: "send({ TableName: 't', UpdateExpression: `SET #a = :v`, ExpressionAttributeNames: { '#a': 'a' }, ExpressionAttributeValues: { ':v': 1 } });",
     },
+    {
+      name: "a ReturnValues the operation takes",
+      code: `new PutCommand({ TableName: "t", Item: item, ReturnValues: "ALL_OLD", ReturnValuesOnConditionCheckFailure: ReturnValue.ALL_OLD });`,
+    },
+    {
+      name: "a ReturnValues the rule can't read",
+      code: `new PutCommand({ TableName: "t", Item: item, ReturnValues: options.returnValues }); new PutCommand({ TableName: "t", Item: item, ReturnValues: mode });`,
+    },
+    {
+      name: "a ReturnValues where the rule can't see the operation",
+      code: `const params = { TableName: "t", Item: item, ReturnValues: "ALL_NEW" }; send(params);`,
+    },
+    {
+      name: "a transaction item's ReturnValues, which the SDK drops",
+      code: `send({ TransactItems: [{ Put: { TableName: "t", Item: item, ReturnValues: "ALL_NEW" } }] });`,
+    },
   ],
   invalid: [
     {
@@ -136,6 +152,26 @@ ruleTester.run("valid-expressions", rule, {
         { messageId: "unaliased", column: 47, endColumn: 48 },
         { messageId: "reserved-word" },
       ],
+    },
+    {
+      name: "a ReturnValues the SDK command's operation doesn't take, at the value",
+      code: `new PutCommand({ TableName: "t", Item: item, ReturnValues: "ALL_NEW" });`,
+      errors: [{ messageId: "return-values", column: 60, endColumn: 69 }],
+    },
+    {
+      name: "a ReturnValues written as an SDK or CDK enum member",
+      code: `new DeleteItemCommand({ TableName: "t", Key: k, ReturnValues: ReturnValue.UPDATED_OLD }); new DynamoPutItem(this, "P", { table, item, returnValues: tasks.DynamoReturnValues.ALL_NEW });`,
+      errors: [{ messageId: "return-values" }, { messageId: "return-values" }],
+    },
+    {
+      name: "a v2 Document client write, known by its method",
+      code: `docClient.put({ TableName: "t", Item: item, ReturnValues: "UPDATED_NEW" });`,
+      errors: [{ messageId: "return-values" }],
+    },
+    {
+      name: "a transaction item's ReturnValuesOnConditionCheckFailure",
+      code: `send({ TransactItems: [{ ConditionCheck: { Key: k, ConditionExpression: "attribute_exists(a)", ReturnValuesOnConditionCheckFailure: "ALL_NEW" } }] });`,
+      errors: [{ messageId: "return-values" }],
     },
   ],
 });

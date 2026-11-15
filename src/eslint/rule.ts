@@ -1,14 +1,17 @@
 import type { Rule } from "eslint";
 import type { Node, ObjectExpression, Property } from "estree";
 import { UNKNOWN } from "../core/check.js";
+import { transactionItemOperation } from "../core/operations.js";
 import { aliasFor } from "../core/parse.js";
 import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
+import { RETURN_VALUES } from "../core/return-values.js";
 import {
   DOC_LINKS,
   EXPRESSION_FIELDS,
   type ExpressionField,
   MAP_FIELDS,
   type MapField,
+  RETURN_VALUE_FIELDS,
   type ViolationField,
   type ViolationKind,
 } from "../core/violations.js";
@@ -18,7 +21,7 @@ const MAP_KEYS = Object.keys(MAP_FIELDS) as MapField[];
 
 /** The fields as the SDK spells them, and as CDK's Step Functions tasks do. */
 const FIELDS = new Map<string, ViolationField>(
-  [...EXPRESSION_KEYS, ...MAP_KEYS].flatMap((field) => [
+  [...EXPRESSION_KEYS, ...MAP_KEYS, ...RETURN_VALUE_FIELDS].flatMap((field) => [
     [field, field],
     [field.charAt(0).toLowerCase() + field.slice(1), field],
   ]),
@@ -58,6 +61,21 @@ function staticString(node: Node): string | undefined {
   return undefined;
 }
 
+const ENUM_MEMBERS = new Set<string>(RETURN_VALUES);
+
+/**
+ * A return-values field's value: a string literal, or an enum member such as
+ * the SDK's `ReturnValue.ALL_NEW` or CDK's `DynamoReturnValues.ALL_NEW`, whose
+ * name is its value. Any other member, such as `options.mode`, isn't known.
+ */
+function returnValueOf(node: Node): string | undefined {
+  if (node.type !== "MemberExpression") return staticString(node);
+  const { computed, property } = node;
+  return !computed && property.type === "Identifier" && ENUM_MEMBERS.has(property.name)
+    ? property.name
+    : undefined;
+}
+
 /** A string assembled from parts: a template literal with interpolations, or `+`. */
 const isAssembled = (node: Node): boolean =>
   (node.type === "TemplateLiteral" && node.expressions.length > 0) ||
@@ -66,7 +84,8 @@ const isAssembled = (node: Node): boolean =>
 /**
  * The operation this object is sent to, when its place says: the call or
  * `new` it is an argument to, the transaction item key it sits under, or the
- * `RequestItems` it is a table of. These are the places `findRequests` reads.
+ * `RequestItems` it is a table of. These are the places `findRequests` reads,
+ * and the names it gives them.
  */
 function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
   name?: string;
@@ -76,7 +95,9 @@ function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
   if (parent.type === "Property") {
     if (parent.value !== node) return { dynamo: false };
     const key = keyOf(parent);
-    if (key !== undefined && TRANSACT.has(key)) return { name: key, dynamo: true };
+    if (key !== undefined && TRANSACT.has(key)) {
+      return { name: transactionItemOperation(key), dynamo: true };
+    }
     // A table's own key is often computed, so only the key above it is read.
     const tables = parent.parent;
     const above = tables.type === "ObjectExpression" ? tables.parent : undefined;
@@ -232,6 +253,10 @@ export const rule: Rule.RuleModule = {
           const value = fields.get(field)?.value;
           if (value !== undefined) request[field] = mapOf(value, field);
           else if (spread) request[field] = UNKNOWN;
+        }
+        for (const field of RETURN_VALUE_FIELDS) {
+          const value = fields.get(field)?.value;
+          if (value !== undefined) request[field] = returnValueOf(value) ?? UNKNOWN;
         }
 
         // The request holds no TransactItems or RequestItems, so it is the one site.
