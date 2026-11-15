@@ -1,8 +1,9 @@
 /**
- * The lint guard: an ESLint plugin whose rule checks DynamoDB requests written
+ * The lint guard: an ESLint plugin whose rules check DynamoDB requests written
  * as object literals. Needs the optional `eslint` peer.
  */
 import type { ESLint, Linter } from "eslint";
+import { ambiguousSubtraction } from "./eslint/ambiguous-subtraction.js";
 import { rule } from "./eslint/rule.js";
 
 /**
@@ -11,11 +12,13 @@ import { rule } from "./eslint/rule.js";
  */
 const plugin: ESLint.Plugin = {
   meta: { name: "@composure-labs/dynamodb-guard" },
-  rules: { "valid-expressions": rule },
+  rules: { "valid-expressions": rule, "ambiguous-subtraction": ambiguousSubtraction },
 };
 
 /**
- * `recommended` turns the rule on as an error. It declares no `files`: only
+ * `recommended` turns `valid-expressions` on as an error, since DynamoDB would
+ * reject what it reports, and `ambiguous-subtraction` on as a warning, since
+ * DynamoDB accepts what it reports. It declares no `files`: only
  * the consumer knows where their code lives.
  *
  * ```js
@@ -27,7 +30,10 @@ export const configs = {
   recommended: {
     name: "dynamodb-guard/recommended",
     plugins: { "dynamodb-guard": plugin },
-    rules: { "dynamodb-guard/valid-expressions": "error" },
+    rules: {
+      "dynamodb-guard/valid-expressions": "error",
+      "dynamodb-guard/ambiguous-subtraction": "warn",
+    },
   },
 } satisfies Record<string, Linter.Config>;
 

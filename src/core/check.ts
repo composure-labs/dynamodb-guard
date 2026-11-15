@@ -47,17 +47,22 @@ export const UNKNOWN: unique symbol = Symbol.for("@composure-labs/dynamodb-guard
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Text found in an expression, and where. */
+export interface FieldToken {
+  readonly field: ExpressionField;
+  readonly text: string;
+  readonly offset: number;
+}
+
 /** What {@link checkPartialRequest} found, and which fields it couldn't check. */
 export interface PartialCheck {
   readonly violations: Violation[];
   /** Fields holding {@link UNKNOWN}, or anything but a string or a map. */
   readonly unknown: (ExpressionField | MapField)[];
   /** Each name an expression writes without an alias that DynamoDB accepts so. */
-  readonly bareNames: {
-    readonly field: ExpressionField;
-    readonly text: string;
-    readonly offset: number;
-  }[];
+  readonly bareNames: FieldToken[];
+  /** Each `a-b` that DynamoDB reads as a subtraction but looks like one name. Not a violation. */
+  readonly ambiguousSubtractions: FieldToken[];
 }
 
 /**
@@ -192,7 +197,8 @@ export function checkPartialRequest(
     ExpressionAttributeValues: new Set(),
   };
   const violations: Violation[] = [];
-  const bareNames: PartialCheck["bareNames"] = [];
+  const bareNames: FieldToken[] = [];
+  const ambiguousSubtractions: FieldToken[] = [];
   let expressions: number | undefined = 0;
 
   for (const [field, kind] of Object.entries(EXPRESSION_FIELDS) as [
@@ -212,6 +218,9 @@ export function checkPartialRequest(
     // A syntax error stops the parse, and what it didn't reach could use any entry.
     if (parsed.violations.some((v) => v.kind === "syntax")) expressions = undefined;
     for (const { text, offset } of parsed.bareNames) bareNames.push({ field, text, offset });
+    for (const { text, offset } of parsed.ambiguousSubtractions) {
+      ambiguousSubtractions.push({ field, text, offset });
+    }
     for (const [mapField, placeholders] of [
       ["ExpressionAttributeNames", parsed.names],
       ["ExpressionAttributeValues", parsed.values],
@@ -242,7 +251,7 @@ export function checkPartialRequest(
     }
   }
   violations.push(...returnValueViolations(fields, returns));
-  return { violations, unknown, bareNames };
+  return { violations, unknown, bareNames, ambiguousSubtractions };
 }
 
 /**
