@@ -1,7 +1,7 @@
 {
-  "recordedAt": "2026-11-05",
+  "recordedAt": "2026-11-15",
   "region": "eu-west-2",
-  "sdk": "@aws-sdk/client-dynamodb@3.1156.0",
+  "sdk": "@aws-sdk/client-dynamodb@3.1161.0",
   "cases": {
     "update-reserved-bare": {
       "hash": "0e0833489f8f8c88",
@@ -514,6 +514,145 @@
       "hash": "50706cfeba6f8aeb",
       "outcome": "rejected",
       "message": "1 validation error detected: ExpressionAttributeNames contains invalid key: The expression attribute map contains a key that is too long; size of key: 256"
+    },
+    "updateitem-returnvalues-none": {
+      "hash": "c94b3261fa9e82a6",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvalues-all-old": {
+      "hash": "bbcd2fe0067206be",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvalues-updated-old": {
+      "hash": "a6ee7d78ca7b61a5",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvalues-all-new": {
+      "hash": "5a589bf044b285b4",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvalues-updated-new": {
+      "hash": "df5ef0c1ebeb4d73",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvalues-all": {
+      "hash": "402b5cd555f23b4e",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, UPDATED_OLD, ALL_NEW, UPDATED_NEW, NONE]"
+    },
+    "updateitem-returnvalues-lower-case": {
+      "hash": "ec3f82d3a84e9ebe",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, UPDATED_OLD, ALL_NEW, UPDATED_NEW, NONE]"
+    },
+    "putitem-returnvalues-none": {
+      "hash": "5aa361d29ab5e399",
+      "outcome": "accepted"
+    },
+    "putitem-returnvalues-all-old": {
+      "hash": "b5b0a793b267cb58",
+      "outcome": "accepted"
+    },
+    "putitem-returnvalues-updated-old": {
+      "hash": "a43d04fed0b79059",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "putitem-returnvalues-all-new": {
+      "hash": "1b536675940dd9e6",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "putitem-returnvalues-updated-new": {
+      "hash": "af97c52fcfe38909",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "deleteitem-returnvalues-none": {
+      "hash": "cf41f450ba87b217",
+      "outcome": "accepted"
+    },
+    "deleteitem-returnvalues-all-old": {
+      "hash": "e2708ef193e30a02",
+      "outcome": "accepted"
+    },
+    "deleteitem-returnvalues-updated-old": {
+      "hash": "1c5150ed59062e45",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "deleteitem-returnvalues-all-new": {
+      "hash": "161bb9b6ba031dd3",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "deleteitem-returnvalues-updated-new": {
+      "hash": "ab2aef0aedf6c818",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
+    },
+    "updateitem-returnvaluesonconditioncheckfailure-none": {
+      "hash": "59b7cbc17fc25da3",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvaluesonconditioncheckfailure-all-old": {
+      "hash": "af9b1a2c6861fe60",
+      "outcome": "accepted"
+    },
+    "updateitem-returnvaluesonconditioncheckfailure-all-new": {
+      "hash": "36c1129277731c6d",
+      "outcome": "rejected",
+      "message": "Value 'ALL_NEW' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "updateitem-returnvaluesonconditioncheckfailure-updated-old": {
+      "hash": "9703ec8a5a198dd7",
+      "outcome": "rejected",
+      "message": "Value 'UPDATED_OLD' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "putitem-returnvaluesonconditioncheckfailure-none": {
+      "hash": "0033259feb5a34dc",
+      "outcome": "accepted"
+    },
+    "putitem-returnvaluesonconditioncheckfailure-all-old": {
+      "hash": "ff3bb0bb99f092c4",
+      "outcome": "accepted"
+    },
+    "putitem-returnvaluesonconditioncheckfailure-all-new": {
+      "hash": "955102e2ff132f78",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value 'ALL_NEW' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "putitem-returnvaluesonconditioncheckfailure-updated-old": {
+      "hash": "c93ea8efc19e104d",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value 'UPDATED_OLD' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "deleteitem-returnvaluesonconditioncheckfailure-none": {
+      "hash": "2e4d13b9ee9d852c",
+      "outcome": "accepted"
+    },
+    "deleteitem-returnvaluesonconditioncheckfailure-all-old": {
+      "hash": "b6cb70b8c401c64b",
+      "outcome": "accepted"
+    },
+    "deleteitem-returnvaluesonconditioncheckfailure-all-new": {
+      "hash": "7edfe3242500cc11",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value 'ALL_NEW' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "deleteitem-returnvaluesonconditioncheckfailure-updated-old": {
+      "hash": "ba36ed531a6906b5",
+      "outcome": "rejected",
+      "message": "1 validation error detected: Value 'UPDATED_OLD' at 'returnValuesOnConditionCheckFailure' failed to satisfy constraint: Member must satisfy enum value set: [ALL_OLD, NONE]"
+    },
+    "update-return-values-with-expression": {
+      "hash": "29bd3af151cb7ca3",
+      "outcome": "accepted"
+    },
+    "put-return-values-with-condition": {
+      "hash": "ee77e8f49256a366",
+      "outcome": "rejected",
+      "message": "1 validation error detected: ReturnValues can only be ALL_OLD or NONE"
     }
   }
 }
