@@ -69,6 +69,8 @@ jobs:
 
       # Before verify, so the tarball verify packs and checks is the one
       # published.
+      # The `version` script also rewrites src/core/version.ts, which the
+      # plugin reports as meta.version; Verify's tests fail if the two differ.
       - name: Set version
         env:
           VERSION: ${{ inputs.version }}

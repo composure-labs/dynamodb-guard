@@ -3,6 +3,7 @@
  * as object literals. Needs the optional `eslint` peer.
  */
 import type { ESLint, Linter } from "eslint";
+import { VERSION } from "./core/version.js";
 import { ambiguousSubtraction } from "./eslint/ambiguous-subtraction.js";
 import { rule } from "./eslint/rule.js";
 
@@ -11,7 +12,8 @@ import { rule } from "./eslint/rule.js";
  * object: ESLint rejects a config that registers two objects under one name.
  */
 const plugin: ESLint.Plugin = {
-  meta: { name: "@composure-labs/dynamodb-guard" },
+  // ESLint's cache and --print-config read the version.
+  meta: { name: "@composure-labs/dynamodb-guard", version: VERSION },
   rules: { "valid-expressions": rule, "ambiguous-subtraction": ambiguousSubtraction },
 };
 

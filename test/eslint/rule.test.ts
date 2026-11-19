@@ -2,6 +2,7 @@ import * as tsParser from "@typescript-eslint/parser";
 import { Linter, RuleTester } from "eslint";
 import { describe, expect, it } from "vitest";
 import dynamodbGuard, { configs, rules } from "../../src/eslint.js";
+import { VERSION } from "../../src/core/version.js";
 import { rule } from "../../src/eslint/rule.js";
 
 RuleTester.describe = describe;
@@ -180,6 +181,10 @@ describe("plugin", () => {
   it("registers the same plugin object in its preset, so presets compose", () => {
     expect(configs.recommended.plugins["dynamodb-guard"]).toBe(dynamodbGuard);
     expect(rules).toBe(dynamodbGuard.rules);
+  });
+
+  it("names its version, which ESLint's cache reads", () => {
+    expect(dynamodbGuard.meta?.version).toBe(VERSION);
   });
 
   it("runs from the recommended preset in a flat config", () => {
