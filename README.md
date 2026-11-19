@@ -14,9 +14,6 @@
 
 **Catch DynamoDB expression mistakes before deploy.**
 
-> [!WARNING]
-> **Pre-release.** The checker and all three guards are in place, but the API may still change before 1.0. The design and the plan live in [laazyj/composureCDK#627](https://github.com/laazyj/composureCDK/issues/627#issuecomment-6389317138).
-
 DynamoDB rejects a request whose expression names a [reserved word](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html) (`status`, `metrics`, `name`, `data` and about 570 more) without an `ExpressionAttributeNames` alias:
 
 ```
@@ -227,7 +224,7 @@ The rule can't see a name that arrives through a variable. `/testing` checks tho
 
 To turn it off, set `"dynamodb-guard/ambiguous-subtraction": "off"` after the preset. `aliasAll` makes it redundant, since that option already reports the bare names.
 
-Each rule's name, its messages and its default severity are public API: tightening any of them is a breaking change.
+Each rule's name, message IDs, options and presets are public API; its wording isn't. See [Versioning](#versioning) for what a minor release can add.
 
 ## Where this sits in the ecosystem
 
@@ -240,6 +237,19 @@ This is a **[Composure Labs](https://github.com/composure-labs)** package: first
 | _(none)_        | nothing IaC-specific                           |
 
 This one has no prefix: its root entry point needs nothing IaC-specific. It is not related to [AWS CloudFormation Guard](https://github.com/aws-cloudformation/cloudformation-guard).
+
+## Versioning
+
+The package follows [semver](https://semver.org). [ADR-0001](docs/adr/0001-versioning-and-stable-api.md) sets out exactly what is covered; in short:
+
+- **Stable:** the entry points and their exports; each violation's `kind`, `field`, `token` and `offset`; `DynamoExpressionError`'s `name` and `violations`; `DYNAMODB_EXPRESSION_WARNING`; options and their defaults; each lint rule's name, message IDs and presets.
+- **Not stable:** the wording of messages, and the layout of the caret under a token. Match on `kind`, never on the text.
+- **A minor release can add a check for a request DynamoDB rejects.** The check is backed by [recorded cases](test/corpus/), so it can only report code that would already fail when it runs. It may still turn a green build red after an upgrade; the release notes name every new check. To adopt one without blocking synth, run `/cdk` with `onViolation: "warn"` for a while.
+- **A minor release can add a `ViolationKind`.** If you branch on `kind`, keep a `default` branch for kinds you don't know.
+- **Only a major release reports, by default, something DynamoDB accepts**, adds a lint rule to a preset, or changes a default.
+- **A minor release can drop a Node.js line that has reached its upstream end of life.** Raising a peer floor waits for a major.
+
+The [design notes](docs/design.md) explain why the guards run before deploy and never in production.
 
 ## Compatibility
 
