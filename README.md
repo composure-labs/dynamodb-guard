@@ -22,6 +22,23 @@ ValidationException: Invalid UpdateExpression: Attribute name is a reserved keyw
 
 Nothing catches this before the first real call. `cdk synth` accepts it, and unit tests with mocked clients accept any string. The same is true of names that must be aliased for other reasons, `#aliases` with no definition, and definitions that nothing uses.
 
+## Getting started
+
+```sh
+npm i -D @composure-labs/dynamodb-guard
+```
+
+Then pick the guard for where your expressions are written. Most projects want more than one; they all run the same checker.
+
+| To check                                                        | Import                                                      | Also needs                                         |
+| --------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| Requests your handlers send, in unit tests with a mocked client | [`/testing`](#handler-code-in-unit-tests-testing)           | Nothing                                            |
+| Step Functions definitions and `AwsCustomResource`s, at synth   | [`/cdk`](#step-functions-and-custom-resources-at-synth-cdk) | `aws-cdk-lib` and `constructs`, as any CDK app has |
+| Literal requests, in the editor and lint                        | [`/eslint`](#lint-eslint)                                   | `eslint` 9 or 10, with flat config                 |
+| A request you have in hand, from your own code or tooling       | [the root](#the-checker)                                    | Nothing                                            |
+
+It needs Node.js 22 or later. See [Compatibility](#compatibility) for the versions each peer must be.
+
 ## Guards, not runtime checks
 
 Every guard here runs **before deploy**: in the editor, in lint, in unit tests or at synth. Nothing in this package runs in production. Once a request reaches DynamoDB, DynamoDB reports the mistake itself. A guard's job is to move that report to before deploy.
@@ -67,6 +84,35 @@ assertRequest({
 | `limit`                                                  | over 4 KB, 300 operators, 100 `IN` operands or a 255-byte placeholder                                                                                           |
 | `syntax`                                                 | anything else it can't parse; like DynamoDB, it stops at the first                                                                                              |
 | `return-values`                                          | a `ReturnValues` the operation doesn't take (`ALL_NEW` on `PutItem` or `DeleteItem`), or a `ReturnValuesOnConditionCheckFailure` other than `NONE` or `ALL_OLD` |
+
+`checkExpression(expression, kind)` checks one expression on its own, where you have an expression but no request. `kind` is `"update"`, `"condition"`, `"keyCondition"`, `"filter"` or `"projection"`. It reports names, grammar and limits, but not placeholders or overlapping paths, because both depend on the rest of the request:
+
+```ts
+import { checkExpression } from "@composure-labs/dynamodb-guard";
+
+checkExpression("SET status = :v", "update"); // one reserved-word violation
+checkExpression("SET #s = :v", "update"); // [], though nothing defines #s
+```
+
+The root also exports the types: `DynamoRequest`, `Violation`, `ViolationKind`, `ViolationField`, `ExpressionField`, `ReturnValueField` and `ExpressionKind`. If you branch on a violation's `kind`, keep a `default` branch: a minor release can add kinds ([Versioning](#versioning)).
+
+### The reserved-word list
+
+The 573 words are a snapshot of [AWS's reserved-words page](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html), with the date it was taken at the top of [`src/core/reserved-words.ts`](src/core/reserved-words.ts). [`scripts/reserved-words.mjs`](scripts/reserved-words.mjs) compares the snapshot with the page and regenerates it. A maintainer runs it now and then; it isn't a CI gate, because it fetches the page and parses its HTML. AWS rarely changes the list, since a new reserved word breaks queries on existing tables. A word AWS adds ships in a minor release, and a word it removes in a patch.
+
+### Limits
+
+The checker reads the request and nothing else. DynamoDB also judges a request against the table and the data, and the checker can't see either:
+
+- **The table.** A key condition on an attribute that isn't a key, or an `IndexName` that doesn't exist, passes. [#12](https://github.com/composure-labs/dynamodb-guard/issues/12) records why these checks wait for demand.
+- **Types.** An operand of the wrong type, such as a number passed to `begins_with` or `ADD` on a string, passes. DynamoDB judges types against the values and the item.
+- **Values.** The contents of `ExpressionAttributeValues`, and fields such as `Key` and `Item`, aren't checked.
+- **The operation.** `ReturnValues` is checked only when the operation is known.
+- **PartiQL.** `ExecuteStatement` is out of scope.
+
+Some expressions DynamoDB accepts may still not mean what was meant. An unaliased `a.b` is a nested path, not an attribute named `a.b`. On the right of `SET`, `a-b` is a subtraction; the [lint preset](#lint-eslint) warns about that one. Like DynamoDB, the checker reports only the first syntax error in an expression.
+
+Each guard has limits of its own, listed in its section below.
 
 ## Step Functions and custom resources, at synth (`/cdk`)
 
