@@ -56,7 +56,7 @@ AWS_PROFILE=<profile> AWS_REGION=<region> npm run corpus:record
 
 ## Releasing
 
-Maintainers run the **Release** workflow by hand with the version to publish. It sets the version, runs `verify`, and publishes the tarball `verify` checked to npm through trusted publishing (OIDC), with provenance. It then publishes the GitHub Release, which creates the `v<version>` tag. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`. A prerelease, such as `0.3.0-rc.1`, is published under the `next` dist-tag.
+Maintainers run the **Release** workflow by hand with the version to publish. It sets the version (`npm version`, whose `version` script also writes `src/core/version.ts`), runs `verify`, and publishes the tarball `verify` checked to npm through trusted publishing (OIDC), with provenance. It then publishes the GitHub Release, which creates the `v<version>` tag. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`. A prerelease, such as `0.3.0-rc.1`, is published under the `next` dist-tag.
 
 Nothing approves a run after it starts, so the gate is who can run it: the `npm` environment deploys only from protected branches, and the package's trusted publisher on npmjs.com (GitHub, this repository, `release.yml`, environment `npm`) must allow `npm publish`.
 
