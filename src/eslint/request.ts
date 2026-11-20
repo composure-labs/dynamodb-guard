@@ -1,7 +1,7 @@
 import type { AST, Rule, SourceCode } from "eslint";
 import type { Node, ObjectExpression, Property } from "estree";
 import { type PartialCheck, UNKNOWN } from "../core/check.js";
-import { transactionItemOperation } from "../core/operations.js";
+import { dynamodbAction, transactionItemOperation } from "../core/operations.js";
 import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
 import { RETURN_VALUES } from "../core/return-values.js";
 import {
@@ -78,10 +78,25 @@ const isAssembled = (node: Node): boolean =>
   (node.type === "TemplateLiteral" && node.expressions.length > 0) ||
   (node.type === "BinaryExpression" && node.operator === "+");
 
+/** The operation an `AwsCustomResource` call written as a literal sends to DynamoDB, if any. */
+function customResourceAction(call: Node): string | undefined {
+  if (call.type !== "ObjectExpression") return undefined;
+  let service: string | undefined;
+  let action: string | undefined;
+  for (const property of call.properties) {
+    if (property.type !== "Property") continue;
+    const key = keyOf(property);
+    if (key === "service") service = staticString(property.value);
+    else if (key === "action") action = staticString(property.value);
+  }
+  return dynamodbAction(service, action);
+}
+
 /**
  * The operation this object is sent to, when its place says: the call or
- * `new` it is an argument to, the transaction item key it sits under, or the
- * `RequestItems` it is a table of. These are the places `findRequests` reads,
+ * `new` it is an argument to, the transaction item key it sits under, the
+ * `RequestItems` it is a table of, or the `action` beside it in an
+ * `AwsCustomResource` call. These are the places `findRequests` reads,
  * and the names it gives them.
  */
 function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
@@ -95,10 +110,15 @@ function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
     if (key !== undefined && TRANSACT.has(key)) {
       return { name: transactionItemOperation(key), dynamo: true };
     }
+    // The object this one is a property of: a call's, or a table map's.
+    const holder = parent.parent;
+    if (key === "parameters") {
+      const action = customResourceAction(holder);
+      if (action !== undefined) return { name: action, dynamo: true };
+    }
     // A table's own key is often computed, so only the key above it is read.
-    const tables = parent.parent;
-    const above = tables.type === "ObjectExpression" ? tables.parent : undefined;
-    return above?.type === "Property" && above.value === tables && keyOf(above) === "RequestItems"
+    const above = holder.type === "ObjectExpression" ? holder.parent : undefined;
+    return above?.type === "Property" && above.value === holder && keyOf(above) === "RequestItems"
       ? { name: "BatchGetItem", dynamo: true }
       : { dynamo: false };
   }

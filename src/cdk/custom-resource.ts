@@ -1,14 +1,8 @@
 import { type CfnResource, Stack } from "aws-cdk-lib";
 import { isRecord, UNKNOWN } from "../core/check.js";
+import { dynamodbAction } from "../core/operations.js";
 import { hasToken, parseRendered, settle, type Unparsed } from "./rendered-json.js";
 import type { Payload, RequestSource } from "./source.js";
-
-/** The forms of `service` an `AwsCustomResource` call can name DynamoDB by. */
-const DYNAMODB_SERVICES: ReadonlySet<unknown> = new Set([
-  "DynamoDB",
-  "dynamodb",
-  "@aws-sdk/client-dynamodb",
-]);
 
 /** What `PhysicalResourceIdReference` renders as. The handler replaces it at deploy. */
 const PHYSICAL_RESOURCE_ID = "PHYSICAL:RESOURCEID:";
@@ -50,7 +44,7 @@ function phasesOf(resource: CfnResource, properties: Record<string, unknown>): P
 }
 
 const isDynamoCall = (call: unknown): call is { action: string; parameters?: unknown } =>
-  isRecord(call) && DYNAMODB_SERVICES.has(call.service) && typeof call.action === "string";
+  isRecord(call) && dynamodbAction(call.service, call.action) !== undefined;
 
 /** The request one phase sends: none if it calls another service, `UNKNOWN` if it can't be read. */
 function payloadsOf({ name, call }: Phase): Payload[] {
