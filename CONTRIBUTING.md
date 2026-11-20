@@ -64,13 +64,13 @@ Propose a breaking change in an issue first, saying who it breaks and what they'
 
 ## Releasing
 
-Maintainers run the **Release** workflow by hand with the version to publish. It sets the version (`npm version`, whose `version` script also writes `src/core/version.ts`), runs `verify`, and publishes the tarball `verify` checked to npm through trusted publishing (OIDC), with provenance. It then publishes the GitHub Release, which creates the `v<version>` tag. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`. A prerelease, such as `0.3.0-rc.1`, is published under the `next` dist-tag.
+Maintainers run the **Release** workflow by hand with the version to publish. It sets the version (`npm version`, whose `version` script also writes `src/core/version.ts`), runs `verify`, and publishes the tarball `verify` checked to npm through trusted publishing (OIDC), with provenance. It then publishes the GitHub Release, which creates the `v<version>` tag. The version lives in the tag and on npm; `package.json` on `main` stays at `0.0.0`. A prerelease, such as `1.1.0-rc.1`, is published under the `next` dist-tag, and its GitHub Release is marked as a prerelease, so neither becomes the latest.
 
 Nothing approves a run after it starts, so the gate is who can run it: the `npm` environment deploys only from protected branches, and the package's trusted publisher on npmjs.com (GitHub, this repository, `release.yml`, environment `npm`) must allow `npm publish`.
 
 A major release needs two more steps. Before running the workflow, check that every breaking PR since the last release has a **Migration** section. After the release is published, edit its notes to put those sections first, under a **Migrating from <previous major>** heading, ahead of the generated list. Publish a release candidate, such as `2.0.0-rc.1`, under `next` first, and give consumers time to try it.
 
-If npm publishes and the GitHub Release step fails, don't run the workflow again: the version is already on npm. Create the release by hand, with the commit the run built: `gh release create v<version> --target <sha> --title v<version> --generate-notes`.
+If npm publishes and the GitHub Release step fails, don't run the workflow again: the version is already on npm. Create the release by hand, with the commit the run built: `gh release create v<version> --target <sha> --title v<version> --generate-notes`, adding `--prerelease` for a prerelease.
 
 ## License
 
