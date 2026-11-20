@@ -84,6 +84,18 @@ ruleTester.run("valid-expressions", rule, {
       code: `const params = { TableName: "t", Item: item, ReturnValues: "ALL_NEW" }; send(params);`,
     },
     {
+      name: "an AwsCustomResource call's ReturnValues, which its action takes",
+      code: `new AwsCustomResource(this, "S", { onCreate: { service: "DynamoDB", action: "updateItem", parameters: { TableName: "t", Key: k, ReturnValues: "ALL_NEW" } } });`,
+    },
+    {
+      name: "an AwsCustomResource call to another service, or with an action the rule can't read",
+      code: `new AwsCustomResource(this, "S", { onCreate: { service: "SQS", action: "putItem", parameters: { TableName: "t", ReturnValues: "ALL_NEW" } } }); new AwsCustomResource(this, "T", { onCreate: { service: "DynamoDB", action, parameters: { TableName: "t", ReturnValues: "ALL_NEW" } } });`,
+    },
+    {
+      name: "an AwsCustomResource getItem's ExpressionAttributeValues, which the SDK drops",
+      code: `new AwsCustomResource(this, "S", { onCreate: { service: "dynamodb", action: "getItem", parameters: { Key: k, ProjectionExpression: "a", ExpressionAttributeValues: { ":v": v } } } });`,
+    },
+    {
       name: "a transaction item's ReturnValues, which the SDK drops",
       code: `send({ TransactItems: [{ Put: { TableName: "t", Item: item, ReturnValues: "ALL_NEW" } }] });`,
     },
@@ -167,6 +179,11 @@ ruleTester.run("valid-expressions", rule, {
     {
       name: "a v2 Document client write, known by its method",
       code: `docClient.put({ TableName: "t", Item: item, ReturnValues: "UPDATED_NEW" });`,
+      errors: [{ messageId: "return-values" }],
+    },
+    {
+      name: "#41: an AwsCustomResource call's ReturnValues, known by the action beside it",
+      code: `new AwsCustomResource(this, "S", { onUpdate: { service: "DynamoDB", action: "putItem", parameters: { TableName: "t", Item: item, ReturnValues: "ALL_NEW" } } });`,
       errors: [{ messageId: "return-values" }],
     },
     {

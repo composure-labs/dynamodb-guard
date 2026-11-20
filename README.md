@@ -242,14 +242,15 @@ An object counts as a DynamoDB request when it has a request field and something
 - an object with any expression and a sibling `TableName` or `ExpressionAttribute*`;
 - an argument to `new …Command(…)` or a CDK `Dynamo*` task, including the camelCase props (`updateExpression`, `expressionAttributeNames`);
 - a transaction item's `Update`, `ConditionCheck`, `Put`, `Delete` or `Get`;
-- a table of a `BatchGetItem`'s `RequestItems`, under a literal or computed key.
+- a table of a `BatchGetItem`'s `RequestItems`, under a literal or computed key;
+- the `parameters` of an `AwsCustomResource` call whose literal `service` names DynamoDB.
 
 How it treats each kind of value:
 
 - **Expressions and maps written as literals** are checked together, as a request.
 - **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
 - **`ExpressionAttributeValues` on a `GetItem` or a `BatchGetItem` table** is ignored, because the SDK drops it.
-- **`ReturnValues`** is checked when the rule knows the operation: from the command or CDK task it's passed to (`new PutCommand(…)`, `DynamoPutItem`), a v2 Document client method (`docClient.put(…)`), or the transaction item it sits in. A string literal or an enum member (`ReturnValue.ALL_NEW`, `DynamoReturnValues.ALL_NEW`) is read. Parameters built away from the call aren't, because nothing there says the operation.
+- **`ReturnValues`** is checked when the rule knows the operation: from the command or CDK task it's passed to (`new PutCommand(…)`, `DynamoPutItem`), a v2 Document client method (`docClient.put(…)`), the transaction item it sits in, or the `action` of the `AwsCustomResource` call it's in. A string literal or an enum member (`ReturnValue.ALL_NEW`, `DynamoReturnValues.ALL_NEW`) is read. Parameters built away from the call aren't, because nothing there says the operation.
 
 Options:
 

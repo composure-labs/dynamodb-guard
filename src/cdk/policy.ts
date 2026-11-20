@@ -43,7 +43,7 @@ export interface DynamodbExpressionPolicyConfig {
  * Fails synth when a Step Functions state machine or an `AwsCustomResource`
  * sends DynamoDB a request it would reject: a reserved word used as a name, a name that must be aliased, a
  * placeholder with no definition, a definition nothing uses, and every other
- * {@link https://github.com/composure-labs/dynamodb-guard#what-it-checks | check}
+ * {@link https://github.com/composure-labs/dynamodb-guard#the-checker | check}
  * the checker makes.
  *
  * Installs a CDK Aspect that reads each `AWS::StepFunctions::StateMachine`
