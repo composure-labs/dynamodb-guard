@@ -1,6 +1,6 @@
 import type { AST, Rule, SourceCode } from "eslint";
 import type { Node, ObjectExpression, Property } from "estree";
-import { type PartialCheck, UNKNOWN } from "../core/check.js";
+import { type FieldToken, type PartialCheck, UNKNOWN } from "../core/check.js";
 import { dynamodbAction, transactionItemOperation } from "../core/operations.js";
 import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
 import { RETURN_VALUES } from "../core/return-values.js";
@@ -10,6 +10,7 @@ import {
   MAP_FIELDS,
   type MapField,
   RETURN_VALUE_FIELDS,
+  type Violation,
   type ViolationField,
 } from "../core/violations.js";
 
@@ -149,16 +150,40 @@ function mapOf(node: Node, field: MapField): Record<string, unknown> | typeof UN
 
 type ReportLocation = { node: Node } | { loc: AST.SourceLocation };
 
+/** A finding, with where to report it. */
+type Located<T> = T & { readonly location: ReportLocation };
+
 /** A DynamoDB request written as an object literal, checked. */
-export interface LiteralRequest extends PartialCheck {
+export interface LiteralRequest {
+  readonly violations: readonly Located<Violation>[];
+  /** Each name an expression writes without an alias that DynamoDB accepts so. */
+  readonly bareNames: readonly Located<FieldToken>[];
+  /** Each `a-b` that DynamoDB reads as a subtraction but looks like one name. */
+  readonly ambiguousSubtractions: readonly Located<FieldToken>[];
   /** Each expression assembled with interpolation or `+`, whose text can't be known. */
   readonly assembled: readonly { readonly field: ExpressionField; readonly node: Node }[];
-  /**
-   * Where to report `length` characters at `offset` in `field`'s value: that
-   * range, or the whole value when it can't be narrowed, or the whole object
-   * when the literal has no such field.
-   */
-  at(field: ViolationField, offset: number | undefined, length: number): ReportLocation;
+}
+
+/** One literal a ternary can choose: its text, or `undefined` for no field. */
+interface Branch {
+  readonly node: Node;
+  readonly text: string | undefined;
+}
+
+/**
+ * The literals a ternary chooses between, through nested ternaries. An
+ * `undefined` branch sends no field, as the SDK drops it. Nothing when a
+ * branch is anything else.
+ */
+function branchesOf(node: Node): Branch[] | undefined {
+  if (node.type === "ConditionalExpression") {
+    const consequent = branchesOf(node.consequent);
+    const alternate = branchesOf(node.alternate);
+    return consequent && alternate && [...consequent, ...alternate];
+  }
+  if (node.type === "Identifier" && node.name === "undefined") return [{ node, text: undefined }];
+  const text = staticString(node);
+  return text === undefined ? undefined : [{ node, text }];
 }
 
 /** Each object literal read so far, so the plugin's rules check a request once between them. */
@@ -209,6 +234,7 @@ function readUncached(
 
   const request: Partial<Record<ViolationField, unknown>> = {};
   const assembled: { field: ExpressionField; node: Node }[] = [];
+  const ternaries: { field: ExpressionField; branches: Branch[] }[] = [];
   for (const field of EXPRESSION_KEYS) {
     const value = fields.get(field)?.value;
     if (value === undefined) {
@@ -219,6 +245,8 @@ function readUncached(
     const text = staticString(value);
     request[field] = text ?? UNKNOWN;
     if (text === undefined && isAssembled(value)) assembled.push({ field, node: value });
+    const branches = value.type === "ConditionalExpression" ? branchesOf(value) : undefined;
+    if (branches !== undefined) ternaries.push({ field, branches });
   }
   for (const field of MAP_KEYS) {
     const value = fields.get(field)?.value;
@@ -229,30 +257,75 @@ function readUncached(
     const value = fields.get(field)?.value;
     if (value !== undefined) request[field] = returnValueOf(value) ?? UNKNOWN;
   }
+
+  /** Where to report `length` characters at `offset` in `value`: that range, or the whole value. */
+  const locate = (value: Node | undefined, offset: number | undefined, length: number) => {
+    if (value === undefined) return { node };
+    const text = staticString(value);
+    // Only an escape-free literal's text is its value plus the two quotes.
+    if (
+      offset === undefined ||
+      text === undefined ||
+      sourceCode.getText(value).length !== text.length + 2
+    ) {
+      return { node: value };
+    }
+    const from = (value.range?.[0] ?? 0) + 1 + offset;
+    return {
+      loc: {
+        start: sourceCode.getLocFromIndex(from),
+        end: sourceCode.getLocFromIndex(from + Math.max(1, length)),
+      },
+    };
+  };
+
+  // Each branch of a ternary is checked as its own request. With one field
+  // branching, each is a request the code can send. With more, their
+  // conditions may be related, so the others stay unknown in each.
+  const runs: { request: object; chosen?: { field: ViolationField; node: Node } }[] =
+    ternaries.length === 0
+      ? [{ request }]
+      : ternaries.flatMap(({ field, branches }) =>
+          branches.map((branch) => ({
+            request: { ...request, [field]: branch.text },
+            chosen: { field, node: branch.node },
+          })),
+        );
   // The request holds no TransactItems or RequestItems, so it is the one site.
-  const [check] = checkRequestsIn(request, operation.name);
-  return {
-    ...check,
-    assembled,
-    at(field, offset, length) {
-      const value = fields.get(field)?.value;
-      if (value === undefined) return { node };
-      const text = staticString(value);
-      // Only an escape-free literal's text is its value plus the two quotes.
-      if (
-        offset === undefined ||
-        text === undefined ||
-        sourceCode.getText(value).length !== text.length + 2
-      ) {
-        return { node: value };
+  const checked = runs.map(({ request, chosen }) => ({
+    check: checkRequestsIn(request, operation.name)[0],
+    chosen,
+  }));
+  /** One kind of finding from every run, located. Runs share their other fields, so a finding there is kept once. */
+  const located = <T extends { field: ViolationField; offset?: number }>(
+    pick: (check: PartialCheck) => readonly T[],
+    length: (item: T) => number,
+  ): Located<T>[] => {
+    const found = new Map<string, Located<T>>();
+    for (const { check, chosen } of checked) {
+      for (const item of pick(check)) {
+        const value = chosen?.field === item.field ? chosen.node : fields.get(item.field)?.value;
+        const key = JSON.stringify([item, value?.range]);
+        if (!found.has(key)) {
+          found.set(key, { ...item, location: locate(value, item.offset, length(item)) });
+        }
       }
-      const from = (value.range?.[0] ?? 0) + 1 + offset;
-      return {
-        loc: {
-          start: sourceCode.getLocFromIndex(from),
-          end: sourceCode.getLocFromIndex(from + Math.max(1, length)),
-        },
-      };
-    },
+    }
+    return [...found.values()];
+  };
+  return {
+    violations: located(
+      (check) => check.violations,
+      (violation) => violation.token?.length ?? 0,
+    ),
+    bareNames: located(
+      (check) => check.bareNames,
+      (token) => token.text.length,
+    ),
+    ambiguousSubtractions: located(
+      (check) => check.ambiguousSubtractions,
+      (token) => token.text.length,
+    ),
+    assembled,
   };
 }
