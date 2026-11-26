@@ -45,6 +45,13 @@ export interface DynamoRequest {
  */
 export const UNKNOWN: unique symbol = Symbol.for("@composure-labs/dynamodb-guard/unknown") as never;
 
+/**
+ * Stands in for an `IN` operand list a guard can't read, such as one the code
+ * builds with `${list.join(", ")}`. It may use any placeholder, so no entry
+ * is reported unused, and it is never reported undefined itself.
+ */
+export const IN_LIST_STAND_IN = ":dynamodbGuardInList";
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -218,6 +225,7 @@ export function checkPartialRequest(
     violations.push(...parsed.violations);
     // A syntax error stops the parse, and what it didn't reach could use any entry.
     if (parsed.violations.some((v) => v.kind === "syntax")) expressions = undefined;
+    if (parsed.values.has(IN_LIST_STAND_IN)) expressions = undefined;
     for (const { text, offset } of parsed.bareNames) bareNames.push({ field, text, offset });
     for (const { text, offset } of parsed.ambiguousSubtractions) {
       ambiguousSubtractions.push({ field, text, offset });
@@ -229,7 +237,11 @@ export function checkPartialRequest(
       const map = maps[mapField];
       for (const [placeholder, offset] of placeholders) {
         used[mapField].add(placeholder);
-        if (map === UNKNOWN || (map !== undefined && (placeholder in map || UNKNOWN in map))) {
+        if (
+          placeholder === IN_LIST_STAND_IN ||
+          map === UNKNOWN ||
+          (map !== undefined && (placeholder in map || UNKNOWN in map))
+        ) {
           continue;
         }
         violations.push({

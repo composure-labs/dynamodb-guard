@@ -248,6 +248,7 @@ An object counts as a DynamoDB request when it has a request field and something
 How it treats each kind of value:
 
 - **Expressions and maps written as literals** are checked together, as a request.
+- **An `IN` list the code builds** (`` `t IN (${placeholders.join(", ")})` ``) is accepted: when every interpolation sits in an `IN ( … )` operand list, the rest of the expression is checked, but no placeholder is reported unused, and the list's own operands and their count aren't checked.
 - **A ternary between literals** (`f ? "SET a = :a" : "REMOVE a"`, or `undefined` for no expression) is checked branch by branch, each as the request it would send. When more than one field branches, their conditions may be related, so the rule doesn't judge which placeholders go unused across them.
 - **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
 - **A map held in a `const`, or spread from one** (`ExpressionAttributeValues: values`, `{ ...base, ":m": m }`), is read from the `const`'s object literal, when nothing else can change it: it isn't exported, and every use is a request's map or a spread into another object. A spread or computed key the rule can't read leaves the map open: its listed entries are still checked for use, but no placeholder is reported missing.
@@ -256,10 +257,10 @@ How it treats each kind of value:
 
 Options:
 
-| Option          | Default | Effect                                                                                                                                                                                              |
-| --------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `reportDynamic` | `true`  | Reports an expression assembled with `${}` or `+`, whose names can't be checked. The fix is one string, with each name that varies as a `#placeholder`. Turn it off to accept assembled expressions |
-| `aliasAll`      | `false` | Reports every attribute name not written as a `#placeholder`, reserved or not, so the bug can't be written at all. It needs no word list                                                            |
+| Option          | Default | Effect                                                                                                                                                                                                                                       |
+| --------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `reportDynamic` | `true`  | Reports an expression assembled with `${}` or `+`, whose names can't be checked, other than an `IN` list the code builds. The fix is one string, with each name that varies as a `#placeholder`. Turn it off to accept assembled expressions |
+| `aliasAll`      | `false` | Reports every attribute name not written as a `#placeholder`, reserved or not, so the bug can't be written at all. It needs no word list                                                                                                     |
 
 The rule can't see a name that arrives through a variable. `/testing` checks those, using what the code actually sent.
 

@@ -1,6 +1,6 @@
 import type { AST, Rule, SourceCode } from "eslint";
 import type { Identifier, Node, ObjectExpression, Property, VariableDeclaration } from "estree";
-import { type FieldToken, type PartialCheck, UNKNOWN } from "../core/check.js";
+import { type FieldToken, IN_LIST_STAND_IN, type PartialCheck, UNKNOWN } from "../core/check.js";
 import { dynamodbAction, transactionItemOperation } from "../core/operations.js";
 import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
 import { RETURN_VALUES } from "../core/return-values.js";
@@ -78,6 +78,28 @@ function returnValueOf(node: Node): string | undefined {
 const isAssembled = (node: Node): boolean =>
   (node.type === "TemplateLiteral" && node.expressions.length > 0) ||
   (node.type === "BinaryExpression" && node.operator === "+");
+
+/** Text ending inside an `IN (` operand list, where the next operand starts. */
+const IN_LIST_OPEN = /\bIN\s*\(([^()]*,)?\s*$/i;
+/** Text going on with the next operand, or closing the list. */
+const IN_LIST_NEXT = /^\s*[,)]/;
+
+/**
+ * A template literal's text with a stand-in placeholder for each
+ * interpolation, when every one sits in an `IN ( … )` operand list, as in
+ * `` `a IN (${list})` ``. Nothing for any other template literal.
+ */
+function withListsStoodIn(node: Node): string | undefined {
+  if (node.type !== "TemplateLiteral" || node.expressions.length === 0) return undefined;
+  const [first, ...rest] = node.quasis.map((quasi) => quasi.value.cooked);
+  if (first == null || rest.some((part) => part == null)) return undefined;
+  let text = first;
+  for (const after of rest as string[]) {
+    if (!IN_LIST_OPEN.test(text) || !IN_LIST_NEXT.test(after)) return undefined;
+    text += IN_LIST_STAND_IN + after;
+  }
+  return text;
+}
 
 /** The operation an `AwsCustomResource` call written as a literal sends to DynamoDB, if any. */
 function customResourceAction(call: Node): string | undefined {
@@ -309,7 +331,7 @@ function readUncached(
       if (spread) request[field] = UNKNOWN;
       continue;
     }
-    const text = staticString(value);
+    const text = staticString(value) ?? withListsStoodIn(value);
     request[field] = text ?? UNKNOWN;
     if (text === undefined && isAssembled(value)) assembled.push({ field, node: value });
     const branches = value.type === "ConditionalExpression" ? branchesOf(value) : undefined;

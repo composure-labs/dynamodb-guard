@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { checkPartialRequest, formatViolations, UNKNOWN } from "../../src/core/check.js";
+import {
+  checkPartialRequest,
+  formatViolations,
+  IN_LIST_STAND_IN,
+  UNKNOWN,
+} from "../../src/core/check.js";
 import { isReservedWord, RESERVED_WORDS } from "../../src/core/reserved-words.js";
 import {
   assertRequest,
@@ -405,5 +410,14 @@ describe("checkPartialRequest", () => {
 
     expect(violations.map((v) => [v.kind, v.token])).toEqual([["unused-alias", ":w"]]);
     expect(unknown).toEqual([]);
+  });
+
+  it("lets an IN list stand-in use any entry, and never reports it undefined", () => {
+    const { violations } = checkPartialRequest({
+      FilterExpression: `a IN (${IN_LIST_STAND_IN}) AND b = :y`,
+      ExpressionAttributeValues: { ":w": 1 },
+    });
+
+    expect(violations.map((v) => [v.kind, v.token])).toEqual([["undefined-alias", ":y"]]);
   });
 });
