@@ -34,7 +34,7 @@ Then pick the guard for where your expressions are written. Most projects want m
 | --------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
 | Requests your handlers send, in unit tests with a mocked client | [`/testing`](#handler-code-in-unit-tests-testing)           | Nothing                                            |
 | Step Functions definitions and `AwsCustomResource`s, at synth   | [`/cdk`](#step-functions-and-custom-resources-at-synth-cdk) | `aws-cdk-lib` and `constructs`, as any CDK app has |
-| Literal requests, in the editor and lint                        | [`/eslint`](#lint-eslint)                                   | `eslint` 9 or 10, with flat config                 |
+| Literal requests, in the editor and lint                        | [`/eslint`](#lint-eslint)                                   | `eslint` 8.57 or later, with flat config           |
 | A request you have in hand, from your own code or tooling       | [the root](#the-checker)                                    | Nothing                                            |
 
 It needs Node.js 22 or later. See [Compatibility](#compatibility) for the versions each peer must be.
@@ -300,14 +300,14 @@ The [design notes](docs/design.md) explain why the guards run before deploy and 
 
 ## Compatibility
 
-| Peer          | Range                 | Needed by                                                      |
-| ------------- | --------------------- | -------------------------------------------------------------- |
-| `aws-cdk-lib` | `^2.93.0`             | `/cdk` only. The first release with `Annotations.addWarningV2` |
-| `constructs`  | `^10.0.0`             | `/cdk` only                                                    |
-| `eslint`      | `^9.0.0 \|\| ^10.0.0` | `/eslint` only. Flat config, which ESLint 9 made the default   |
-| Node.js       | `>=22`                | The oldest Node.js release line still supported upstream       |
+| Peer          | Range                              | Needed by                                                          |
+| ------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `aws-cdk-lib` | `^2.93.0`                          | `/cdk` only. The first release with `Annotations.addWarningV2`     |
+| `constructs`  | `^10.0.0`                          | `/cdk` only                                                        |
+| `eslint`      | `^8.57.0 \|\| ^9.0.0 \|\| ^10.0.0` | `/eslint` only, with flat config. 8.57 is ESLint 8's final release |
+| Node.js       | `>=22`                             | The oldest Node.js release line still supported upstream           |
 
-Every peer is optional, but npm still checks the range of a peer you already have: a project on ESLint 9 can install this package for `/testing` alone only because the range admits 9. CI installs the package with none of them and loads the root and `/testing` entry points, then tests every entry point at the oldest version each range admits.
+Every peer is optional, but npm still checks the range of a peer you already have: a project on ESLint 8.56 or earlier can't install this package, even for `/testing` alone. CI installs the package with none of them and loads the root and `/testing` entry points, then tests every entry point at the oldest version each range admits.
 
 Ships ESM and CommonJS from one source, built by [tshy](https://github.com/isaacs/tshy). Types resolve under every `moduleResolution`, including `node10`.
 
