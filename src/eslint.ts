@@ -2,7 +2,7 @@
  * The lint guard: an ESLint plugin whose rules check DynamoDB requests written
  * as object literals. Needs the optional `eslint` peer.
  */
-import type { ESLint, Linter } from "eslint";
+import type { ESLint } from "eslint";
 import { VERSION } from "./core/version.js";
 import { ambiguousSubtraction } from "./eslint/ambiguous-subtraction.js";
 import { rule } from "./eslint/rule.js";
@@ -18,6 +18,19 @@ const plugin: ESLint.Plugin = {
 };
 
 /**
+ * The preset's type, spelled out so the declarations name only `eslint`'s
+ * types. Inferred, they inline `@eslint/core`, which ESLint 8 doesn't install.
+ */
+interface RecommendedConfig {
+  name: string;
+  plugins: { "dynamodb-guard": ESLint.Plugin };
+  rules: {
+    "dynamodb-guard/valid-expressions": "error";
+    "dynamodb-guard/ambiguous-subtraction": "warn";
+  };
+}
+
+/**
  * `recommended` turns `valid-expressions` on as an error, since DynamoDB would
  * reject what it reports, and `ambiguous-subtraction` on as a warning, since
  * DynamoDB accepts what it reports. It declares no `files`: only
@@ -28,7 +41,7 @@ const plugin: ESLint.Plugin = {
  * export default [dynamodbGuard.configs.recommended];
  * ```
  */
-export const configs = {
+export const configs: { recommended: RecommendedConfig } = {
   recommended: {
     name: "dynamodb-guard/recommended",
     plugins: { "dynamodb-guard": plugin },
@@ -37,8 +50,11 @@ export const configs = {
       "dynamodb-guard/ambiguous-subtraction": "warn",
     },
   },
-} satisfies Record<string, Linter.Config>;
+};
 
-export const rules = plugin.rules;
+export const rules: ESLint.Plugin["rules"] = plugin.rules;
 
-export default Object.assign(plugin, { configs });
+const dynamodbGuard: ESLint.Plugin & { configs: typeof configs } = Object.assign(plugin, {
+  configs,
+});
+export default dynamodbGuard;

@@ -1,14 +1,5 @@
-import * as tsParser from "@typescript-eslint/parser";
-import { RuleTester } from "eslint";
-import { describe, it } from "vitest";
 import { ambiguousSubtraction } from "../../src/eslint/ambiguous-subtraction.js";
-
-RuleTester.describe = describe;
-RuleTester.it = it;
-
-const ruleTester = new RuleTester({
-  languageOptions: { parser: tsParser, ecmaVersion: "latest", sourceType: "module" },
-});
+import { ruleTester } from "./flat.js";
 
 const update = (expression: string): string =>
   `send({ TableName: "t", UpdateExpression: "${expression}", ExpressionAttributeValues: { ":v": 1 } });`;

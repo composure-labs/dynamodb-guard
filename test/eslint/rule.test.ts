@@ -1,16 +1,9 @@
-import * as tsParser from "@typescript-eslint/parser";
-import { Linter, RuleTester } from "eslint";
+import { Linter } from "eslint";
 import { describe, expect, it } from "vitest";
 import dynamodbGuard, { configs, rules } from "../../src/eslint.js";
 import { VERSION } from "../../src/core/version.js";
 import { rule } from "../../src/eslint/rule.js";
-
-RuleTester.describe = describe;
-RuleTester.it = it;
-
-const ruleTester = new RuleTester({
-  languageOptions: { parser: tsParser, ecmaVersion: "latest", sourceType: "module" },
-});
+import { ruleTester } from "./flat.js";
 
 ruleTester.run("valid-expressions", rule, {
   valid: [
@@ -205,7 +198,7 @@ describe("plugin", () => {
   });
 
   it("runs from the recommended preset in a flat config", () => {
-    const messages = new Linter().verify(
+    const messages = new Linter({ configType: "flat" }).verify(
       `send({ TableName: "t", UpdateExpression: "SET name = gross-net" });`,
       [configs.recommended],
     );
