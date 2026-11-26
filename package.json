@@ -103,7 +103,7 @@
     "@arethetypeswrong/cli": "^0.18.5",
     "@aws-sdk/client-dynamodb": "^3.1156.0",
     "@aws-sdk/lib-dynamodb": "^3.1156.0",
-    "@composurecdk/eslint-plugin": "^0.11.1",
+    "@composurecdk/eslint-plugin": "^0.13.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^10.0.1",
     "@kjanat/actionlint": "1.17.1",
