@@ -139,8 +139,36 @@ ruleTester.run("valid-expressions", rule, {
       name: "a map from a const shared by two requests",
       code: `const base = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :a", ExpressionAttributeValues: base }); send({ TableName: "t", UpdateExpression: "SET x = :a, m = :m", ExpressionAttributeValues: { ...base, ":m": 2 } });`,
     },
+    {
+      name: "#48: an IN list the code builds, with the rest of the expression valid",
+      code: "new ScanCommand({ TableName, FilterExpression: `#version = :zero AND taskType IN (${placeholders.join(', ')})`, ExpressionAttributeNames: { '#version': 'version' }, ExpressionAttributeValues: { ':zero': { N: '0' }, ...Object.fromEntries(entries) } });",
+    },
+    {
+      name: "an IN list after fixed operands, whose placeholders the literal map lists",
+      code: "send({ TableName: 't', FilterExpression: `a IN (:x, ${more}) AND b = :y`, ExpressionAttributeValues: { ':x': 1, ':y': 2, ':z': 3 } });",
+    },
   ],
   invalid: [
+    {
+      name: "a reserved word beside an IN list the code builds",
+      code: "send({ TableName: 't', FilterExpression: `status = :s AND t IN (${list})`, ExpressionAttributeValues: { ':s': 1, ...rest } });",
+      errors: [{ messageId: "reserved-word" }],
+    },
+    {
+      name: "an undefined placeholder beside an IN list, though entries may go to the list",
+      code: "send({ TableName: 't', FilterExpression: `a IN (${list}) AND b = :y`, ExpressionAttributeValues: { ':x': 1 } });",
+      errors: [{ messageId: "undefined-alias" }],
+    },
+    {
+      name: "an unused entry beside a template literal with nothing interpolated",
+      code: "send({ TableName: 't', UpdateExpression: `SET a = :a`, ExpressionAttributeValues: { ':a': 1, ':b': 2 } });",
+      errors: [{ messageId: "unused-alias" }],
+    },
+    {
+      name: "an interpolation outside an IN list",
+      code: "send({ TableName: 't', FilterExpression: `t IN (${list}) AND ${other} = :s`, ExpressionAttributeValues: { ':s': 1 } });",
+      errors: [{ messageId: "dynamic" }],
+    },
     {
       name: "a placeholder a map from a const doesn't define",
       code: `const values = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
