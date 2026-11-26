@@ -1,5 +1,5 @@
 import type { AST, Rule, SourceCode } from "eslint";
-import type { Node, ObjectExpression, Property } from "estree";
+import type { Identifier, Node, ObjectExpression, Property, VariableDeclaration } from "estree";
 import { type FieldToken, type PartialCheck, UNKNOWN } from "../core/check.js";
 import { dynamodbAction, transactionItemOperation } from "../core/operations.js";
 import { checkRequestsIn, TRANSACT_OPERATIONS } from "../core/requests.js";
@@ -134,18 +134,85 @@ function operationOf(node: ObjectExpression & Rule.NodeParentExtension): {
   return { name, dynamo: name !== undefined && DYNAMO_CALLEE.test(name) };
 }
 
-/** A literal map as the checker reads it: its keys, and each name's literal value. */
-function mapOf(node: Node, field: MapField): Record<string, unknown> | typeof UNKNOWN {
-  if (node.type !== "ObjectExpression") return UNKNOWN;
+/** Whether `identifier` is only copied where it's used: into a request's map, or spread into an object. */
+function isCopied(identifier: Node): boolean {
+  const parent = (identifier as Node & Rule.NodeParentExtension).parent;
+  if (parent.type === "SpreadElement") return parent.parent.type === "ObjectExpression";
+  if (parent.type !== "Property" || parent.value !== identifier) return false;
+  const key = keyOf(parent);
+  const field = key === undefined ? undefined : FIELDS.get(key);
+  return field !== undefined && field in MAP_FIELDS;
+}
+
+/**
+ * The object literal a `const` holds, when nothing else can change it: it
+ * isn't exported, and every use copies it into a request's map or spreads it
+ * into another object.
+ */
+function constObject(identifier: Identifier, sourceCode: SourceCode): ObjectExpression | undefined {
+  const variable = sourceCode
+    .getScope(identifier)
+    .references.find((ref) => ref.identifier === identifier)?.resolved;
+  if (!variable) return undefined;
+  const def = variable.defs.length === 1 ? variable.defs[0] : undefined;
+  if (def?.type !== "Variable") return undefined;
+  const declaration = def.parent as VariableDeclaration & Rule.NodeParentExtension;
+  if (declaration.kind !== "const") return undefined;
+  if (declaration.parent.type === "ExportNamedDeclaration") return undefined;
+  const init = def.node.init;
+  if (init?.type !== "ObjectExpression") return undefined;
+  return variable.references.every((ref) => ref.init === true || isCopied(ref.identifier as Node))
+    ? init
+    : undefined;
+}
+
+/** How many `const`s and spreads deep a map is read. */
+const MAX_DEPTH = 4;
+
+/**
+ * A map's entries, as far as they can be read: an object literal, a `const`
+ * holding one, and spreads of either. `open` when it may hold others too: a
+ * spread or computed key that can't be read may add any entry, or replace a
+ * name's value.
+ */
+function entriesOf(
+  node: Node,
+  field: MapField,
+  sourceCode: SourceCode,
+  depth = 0,
+): { entries: Record<string, unknown>; open: boolean } | undefined {
+  const object =
+    node.type === "Identifier" && depth < MAX_DEPTH ? constObject(node, sourceCode) : node;
+  if (object?.type !== "ObjectExpression") return undefined;
+  const names = field === "ExpressionAttributeNames";
   const entries: Record<string, unknown> = {};
-  for (const property of node.properties) {
-    if (property.type !== "Property") return UNKNOWN;
+  let open = false;
+  const openUp = () => {
+    open = true;
+    if (names) for (const key of Object.keys(entries)) entries[key] = UNKNOWN;
+  };
+  for (const property of object.properties) {
+    if (property.type === "SpreadElement") {
+      const spread = entriesOf(property.argument, field, sourceCode, depth + 1);
+      if (spread === undefined || spread.open) openUp();
+      Object.assign(entries, spread?.entries);
+      continue;
+    }
     const key = keyOf(property);
-    if (key === undefined) return UNKNOWN;
-    entries[key] =
-      field === "ExpressionAttributeNames" ? (staticString(property.value) ?? UNKNOWN) : null;
+    if (key === undefined) openUp();
+    else entries[key] = names ? (staticString(property.value) ?? UNKNOWN) : null;
   }
-  return entries;
+  return { entries, open };
+}
+
+/** A map as the checker reads it: its keys, each name's literal value, and {@link UNKNOWN} when it may hold more. */
+function mapOf(node: Node, field: MapField, sourceCode: SourceCode): object | typeof UNKNOWN {
+  const map = entriesOf(node, field, sourceCode);
+  if (map === undefined) return UNKNOWN;
+  if (!map.open) return map.entries;
+  // With no entry known, an open map says nothing the checker can use.
+  if (Object.keys(map.entries).length === 0) return UNKNOWN;
+  return Object.assign(map.entries, { [UNKNOWN]: true });
 }
 
 type ReportLocation = { node: Node } | { loc: AST.SourceLocation };
@@ -250,7 +317,7 @@ function readUncached(
   }
   for (const field of MAP_KEYS) {
     const value = fields.get(field)?.value;
-    if (value !== undefined) request[field] = mapOf(value, field);
+    if (value !== undefined) request[field] = mapOf(value, field, sourceCode);
     else if (spread) request[field] = UNKNOWN;
   }
   for (const field of RETURN_VALUE_FIELDS) {

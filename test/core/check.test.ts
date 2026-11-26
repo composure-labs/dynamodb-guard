@@ -396,4 +396,14 @@ describe("checkPartialRequest", () => {
     ]);
     expect(unknown).toEqual(["ExpressionAttributeNames"]);
   });
+
+  it("reports an open map's listed entries unused, but none of its placeholders undefined", () => {
+    const { violations, unknown } = checkPartialRequest({
+      UpdateExpression: "SET a = :v",
+      ExpressionAttributeValues: { ":w": 1, [UNKNOWN]: true },
+    });
+
+    expect(violations.map((v) => [v.kind, v.token])).toEqual([["unused-alias", ":w"]]);
+    expect(unknown).toEqual([]);
+  });
 });

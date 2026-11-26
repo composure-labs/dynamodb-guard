@@ -39,7 +39,8 @@ export interface DynamoRequest {
 /**
  * Stands for a value whose text a guard can't know, such as a Step Functions
  * `.$` field or an ESLint rule's non-literal: an expression, a map, or one
- * name in `ExpressionAttributeNames`. A `Symbol.for` brand, so the ESM and
+ * name in `ExpressionAttributeNames`. As a key of a map, it says the map may
+ * hold entries besides those it lists. A `Symbol.for` brand, so the ESM and
  * CommonJS copies of this package agree on it.
  */
 export const UNKNOWN: unique symbol = Symbol.for("@composure-labs/dynamodb-guard/unknown") as never;
@@ -174,8 +175,8 @@ function mapViolations(
 /**
  * {@link checkRequest} for a request some of whose fields a guard can't know.
  * Each rule judges only what it can: an unknown expression may use any
- * placeholder, so no entry is reported unused; an unknown map may define any,
- * so none of its placeholders is reported undefined.
+ * placeholder, so no entry is reported unused; an unknown map, or one with an
+ * {@link UNKNOWN} key, may define any, so no placeholder is reported undefined.
  *
  * @param returns - What the request's operation may return; by default, nothing is checked.
  */
@@ -228,7 +229,9 @@ export function checkPartialRequest(
       const map = maps[mapField];
       for (const [placeholder, offset] of placeholders) {
         used[mapField].add(placeholder);
-        if (map === UNKNOWN || (map !== undefined && placeholder in map)) continue;
+        if (map === UNKNOWN || (map !== undefined && (placeholder in map || UNKNOWN in map))) {
+          continue;
+        }
         violations.push({
           kind: "undefined-alias",
           field,
