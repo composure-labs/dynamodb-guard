@@ -111,8 +111,56 @@ ruleTester.run("valid-expressions", rule, {
       name: "a ternary with a branch the rule can't read",
       code: `send({ TableName: "t", UpdateExpression: f ? "SET status = :a" : expression, ExpressionAttributeValues: { ":a": 1 } });`,
     },
+    {
+      name: "a map from a const that is changed elsewhere, so it can't be read",
+      code: `const values = { ":a": 1 }; values[":b"] = 2; send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
+    },
+    {
+      name: "a map from a const passed elsewhere, which may change it",
+      code: `const values = { ":a": 1 }; extend(values); send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
+    },
+    {
+      name: "a map from an exported const, which another module may change",
+      code: `export const values = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
+    },
+    {
+      name: "a map from a let",
+      code: `let values = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
+    },
+    {
+      name: "a spread the rule can't read, which may define any placeholder",
+      code: `send({ TableName: "t", UpdateExpression: "SET x = :a, y = :b", ExpressionAttributeValues: { ":a": 1, ...more } });`,
+    },
+    {
+      name: "a name a later spread may replace, so its value isn't known",
+      code: `send({ TableName: "t", ProjectionExpression: "#a, b", ExpressionAttributeNames: { "#a": "b", ...more } });`,
+    },
+    {
+      name: "a map from a const shared by two requests",
+      code: `const base = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :a", ExpressionAttributeValues: base }); send({ TableName: "t", UpdateExpression: "SET x = :a, m = :m", ExpressionAttributeValues: { ...base, ":m": 2 } });`,
+    },
   ],
   invalid: [
+    {
+      name: "a placeholder a map from a const doesn't define",
+      code: `const values = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :b", ExpressionAttributeValues: values });`,
+      errors: [{ messageId: "undefined-alias" }, { messageId: "unused-alias" }],
+    },
+    {
+      name: "a placeholder a spread of a const doesn't define",
+      code: `const values = { ":a": 1 }; send({ TableName: "t", UpdateExpression: "SET x = :a, y = :b", ExpressionAttributeValues: { ...values } });`,
+      errors: [{ messageId: "undefined-alias" }],
+    },
+    {
+      name: "a listed entry unused, beside a spread the rule can't read",
+      code: `send({ TableName: "t", UpdateExpression: "SET x = :a", ExpressionAttributeValues: { ":w": 1, ...Object.fromEntries(more) } });`,
+      errors: [{ messageId: "unused-alias" }],
+    },
+    {
+      name: "a name from a const in a nested scope, resolved",
+      code: `const names = { "#s": "status" }; function f() { return send({ TableName: "t", ProjectionExpression: "#s, status", ExpressionAttributeNames: names }); }`,
+      errors: [{ messageId: "reserved-word" }, { messageId: "overlapping-paths" }],
+    },
     {
       name: "a reserved word in one branch of a ternary, reported in that branch",
       code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :a" : "SET status = :a", ExpressionAttributeValues: { ":a": 1 } });`,
