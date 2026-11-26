@@ -99,8 +99,45 @@ ruleTester.run("valid-expressions", rule, {
       name: "a transaction item's ReturnValues, which the SDK drops",
       code: `send({ TransactItems: [{ Put: { TableName: "t", Item: item, ReturnValues: "ALL_NEW" } }] });`,
     },
+    {
+      name: "a ternary between an expression and undefined, which sends none",
+      code: `new PutCommand({ TableName: "t", Item: item, ConditionExpression: create ? "attribute_not_exists(pk)" : undefined });`,
+    },
+    {
+      name: "two ternaries whose conditions may be related, so placeholders aren't judged across them",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :v" : "REMOVE a", ConditionExpression: f ? "attribute_exists(b)" : "c = :v", ExpressionAttributeValues: { ":v": 1 } });`,
+    },
+    {
+      name: "a ternary with a branch the rule can't read",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET status = :a" : expression, ExpressionAttributeValues: { ":a": 1 } });`,
+    },
   ],
   invalid: [
+    {
+      name: "a reserved word in one branch of a ternary, reported in that branch",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :a" : "SET status = :a", ExpressionAttributeValues: { ":a": 1 } });`,
+      errors: [{ messageId: "reserved-word", column: 66, endColumn: 72 }],
+    },
+    {
+      name: "a placeholder one branch of a ternary leaves unused",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :a, m = :m" : "SET a = :a REMOVE m", ExpressionAttributeValues: { ":a": a, ":m": m } });`,
+      errors: [{ messageId: "unused-alias" }],
+    },
+    {
+      name: "a nested ternary's last branch, which uses :c in place of :a",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :a" : g ? "SET b = :a" : "SET c = :c", ExpressionAttributeValues: { ":a": 1 } });`,
+      errors: [{ messageId: "undefined-alias" }, { messageId: "unused-alias" }],
+    },
+    {
+      name: "a name only the branch that sends an expression uses",
+      code: `send({ TableName: "t", UpdateExpression: "SET a = :a", ConditionExpression: f ? "attribute_exists(#pk)" : undefined, ExpressionAttributeNames: { "#pk": "pk" }, ExpressionAttributeValues: { ":a": 1 } });`,
+      errors: [{ messageId: "unused-alias" }],
+    },
+    {
+      name: "a finding outside the ternary, reported once",
+      code: `send({ TableName: "t", UpdateExpression: f ? "SET a = :a" : "SET b = :a", ConditionExpression: "attribute_exists(data)", ExpressionAttributeValues: { ":a": 1 } });`,
+      errors: [{ messageId: "reserved-word" }],
+    },
     {
       name: "#627: a reserved word two characters from an aliased one",
       code: `await client.send(new UpdateCommand({

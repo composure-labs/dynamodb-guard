@@ -248,6 +248,7 @@ An object counts as a DynamoDB request when it has a request field and something
 How it treats each kind of value:
 
 - **Expressions and maps written as literals** are checked together, as a request.
+- **A ternary between literals** (`f ? "SET a = :a" : "REMOVE a"`, or `undefined` for no expression) is checked branch by branch, each as the request it would send. When more than one field branches, their conditions may be related, so the rule doesn't judge which placeholders go unused across them.
 - **A value the rule can't read** (a variable, a computed key, a spread that may hold the maps) is left unchecked, and so is anything it could affect.
 - **`ExpressionAttributeValues` on a `GetItem` or a `BatchGetItem` table** is ignored, because the SDK drops it.
 - **`ReturnValues`** is checked when the rule knows the operation: from the command or CDK task it's passed to (`new PutCommand(…)`, `DynamoPutItem`), a v2 Document client method (`docClient.put(…)`), the transaction item it sits in, or the `action` of the `AwsCustomResource` call it's in. A string literal or an enum member (`ReturnValue.ALL_NEW`, `DynamoReturnValues.ALL_NEW`) is read. Parameters built away from the call aren't, because nothing there says the operation.

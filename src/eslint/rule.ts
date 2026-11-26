@@ -67,17 +67,17 @@ export const rule: Rule.RuleModule = {
             context.report({ node: value, messageId: "dynamic", data: { field } });
           }
         }
-        for (const { kind, field, message, offset, token } of literal.violations) {
+        for (const { kind, message, location } of literal.violations) {
           context.report({
-            ...literal.at(field, offset, token?.length ?? 0),
+            ...location,
             messageId: kind,
             data: { message },
           });
         }
         if (!aliasAll) return;
-        for (const { field, text, offset } of literal.bareNames) {
+        for (const { text, location } of literal.bareNames) {
           context.report({
-            ...literal.at(field, offset, text.length),
+            ...location,
             messageId: "unaliased",
             data: { name: text, alias: aliasFor(text) },
           });

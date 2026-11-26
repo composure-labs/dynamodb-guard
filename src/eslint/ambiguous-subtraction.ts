@@ -31,10 +31,10 @@ export const ambiguousSubtraction: Rule.RuleModule = {
       ObjectExpression(node) {
         const literal = readRequest(node, context.sourceCode);
         if (literal === undefined) return;
-        for (const { field, text, offset } of literal.ambiguousSubtractions) {
+        for (const { text, location } of literal.ambiguousSubtractions) {
           const [left, right] = text.split("-");
           context.report({
-            ...literal.at(field, offset, text.length),
+            ...location,
             messageId: "ambiguous",
             data: { text, left, right, alias: aliasFor(text) },
           });
